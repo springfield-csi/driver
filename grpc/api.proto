@@ -1,0 +1,55 @@
+
+// Copyright (C) 2022  Red Hat, Inc.
+//
+// This copyrighted material is made available to anyone wishing to use,
+// modify, copy, or redistribute it subject to the terms and conditions of
+// the GNU General Public License v.2, or (at your option) any later version.
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY expressed or implied, including the implied warranties of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
+// Public License for more details.  You should have received a copy of the
+// GNU General Public License along with this program; if not, write to the
+// Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+// 02110-1301, USA.  Any Red Hat trademarks that are incorporated in the
+// source code or documentation are not subject to the GNU General Public
+// License and may only be used or replicated with the express permission of
+// Red Hat, Inc.
+//
+// Red Hat Author(s): Todd Gill <tgill@redhat.com>
+//
+
+syntax = "proto3";
+
+option go_package = "storage/api";
+
+package api;
+
+// Local storage service definition.
+service LocalStorage {
+    rpc CreateVolume (StorageRequest) returns (StorageReply) {}
+    rpc CreateSnapshot (StorageRequest) returns (StorageReply) {}
+    rpc DeleteVolume(StorageRequest) returns (StorageReply);
+    rpc DeleteSnapshot(StorageRequest) returns (StorageReply);
+    rpc ResizeVolume(StorageRequest) returns (StorageReply);
+    rpc ListVolumes(StorageRequest) returns (StorageListReply);
+    rpc ListDevices(StorageRequest) returns (StorageListReply);
+    rpc ListSnapshots(StorageRequest) returns (StorageListReply);
+}
+
+message StorageRequest {
+  string command = 1;
+  string name = 2;
+  repeated string devices = 3;
+  string size = 4;
+}
+
+message StorageReply {
+  string message = 1;
+  int64 return_code = 2;
+}
+
+message StorageListReply {
+  string message = 1;
+  string device_json = 2;
+  int64 return_code = 3;
+}

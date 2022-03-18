@@ -1,0 +1,6 @@
+{
+    "use_for_csi_storage": [
+        "/dev/<dev name>",
+        "/dev/<dev name>"
+    ]
+}

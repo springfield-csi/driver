@@ -1,0 +1,43 @@
+
+# Overview
+
+Blivet provides high level APIs to most Linux storage technologies.
+
+This is a prototype of a CSI driver over the Blivet API.
+
+Currently just a LVM pool is used, but future enhancements will add more
+features.
+
+
+## Notes
+
+Blivet code: https://github.com/storaged-project/blivet
+
+Prototype grpc server for local storage
+
+python --version
+Python 3.10.2
+
+## Start Server
+sudo python grpc/server.py
+
+# Add disks for volume creation to the storage_devs.json
+# Update the use_for_csi_storage array in the JSON with a list
+# of EMPTY devices for use for CSI volumes.  Any disk added to the
+# list must be empty (no label/partition).  The contents of disks
+# added to the use_for_csi_storage will be overwritten.
+# 
+cp storage_devs_example.json storage_devs.json
+
+
+# Update the grpc interfaces from the grpc directory
+python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. api.proto
+
+## Dependencies
+
+pip3 install blivet
+pip3 install vext
+pip3 install vext.gi
+pip3 install gobject
+dnf install python3-gi
+
