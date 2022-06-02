@@ -84,7 +84,7 @@ class SpringfieldNodeService(NodeServicer):
                 "Unsupported access mode: {csi_pb2.VolumeCapability.AccessMode.Mode.Name(volume_capability.access_mode.mode)}",
             )
         if access_type == "mount":
-            mount(volume_map.device.path, request.target_path, fstype)
+            volume_map.device.format.setup(mountpoint=request.target_path)
 
         volume_map.published_path = request.target_path
 
@@ -107,7 +107,7 @@ class SpringfieldNodeService(NodeServicer):
         volume_map = controller.get_volume(request.volume_id)
 
         try:
-            umount(request.target_path)
+            request.device.format.teardown(mountpoint=request.target_path)
         except OSError as e:
             self.logger.warning("Warining umount filed: %s : %s" %
                                 (request.target_path, e.strerror))
