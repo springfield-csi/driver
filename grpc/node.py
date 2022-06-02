@@ -75,7 +75,7 @@ class SpringfieldNodeService(NodeServicer):
             )
 
         if fstype == '':
-            fstype = "xfs"
+            fstype = volume_map.device.format.type
 
         if volume_capability.access_mode.mode not in [
                 csi_pb2.VolumeCapability.AccessMode.Mode.SINGLE_NODE_WRITER]:
