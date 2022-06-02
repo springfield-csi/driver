@@ -84,7 +84,7 @@ class SpringfieldNodeService(NodeServicer):
                 "Unsupported access mode: {csi_pb2.VolumeCapability.AccessMode.Mode.Name(volume_capability.access_mode.mode)}",
             )
         if access_type == "mount":
-            mount(volume_map.dev_path, request.target_path, fstype)
+            mount(volume_map.device.path, request.target_path, fstype)
 
         volume_map.published_path = request.target_path
 
