@@ -45,11 +45,10 @@ vg_device = LVMLogicalVolumeDevice()
 
 
 class VolumeMap:
-    def __init__(self, real_name, blivet_name, csi_volume, dev_path):
+    def __init__(self, real_name, csi_volume, device):
         self.real_name = real_name
-        self.blivet_name = blivet_name
         self.csi_volume = csi_volume
-        self.dev_path = dev_path
+        self.device = device
         self.published_path = None
 
 
@@ -269,7 +268,7 @@ class SpringfieldControllerService(ControllerServicer):
                     segments={"hostname": os.uname().nodename})
             ])
         volume_map = VolumeMap(
-            request.name, name, csi_volume, device.path)
+            request.name, csi_volume, device)
 
         volume_list.append(volume_map)
         print_volume_list()
@@ -292,7 +291,7 @@ class SpringfieldControllerService(ControllerServicer):
         # TODO: catch the errors thrown by do_it()
         try:
             device = blivet_handle.devicetree.get_device_by_path(
-                volume_map.dev_path)
+                volume_map.device.path)
             if device == None:
                 context.abort(
                     grpc.StatusCode.ABORTED, 'An exception occurred: {}'.format(
@@ -347,8 +346,8 @@ class SpringfieldControllerService(ControllerServicer):
             )
         publish_context = {
             "real_name": volume_map.real_name,
-            "blivet_name": volume_map.blivet_name,
-            "dev_path": volume_map.dev_path
+            "blivet_name": volume_map.device.name,
+            "dev_path": volume_map.device.path
         }
 
         return csi_pb2.ControllerPublishVolumeResponse(publish_context=publish_context)
