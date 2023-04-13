@@ -1,4 +1,4 @@
-# Copyright (C) 2022  Red Hat, Inc.
+# Copyright (C) 2023  Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -17,40 +17,53 @@
 # Red Hat Author(s): Todd Gill <tgill@redhat.com>
 #
 
-import google as google
+from controller import logger
+
 import driver
-from csi_pb2 import GetPluginInfoResponse, ProbeResponse, GetPluginCapabilitiesResponse, PluginCapability
+import grpc
+from csi_pb2 import (
+    GetPluginInfoResponse,
+    ProbeResponse,
+    GetPluginCapabilitiesResponse,
+    PluginCapability,
+)
 from csi_pb2_grpc import IdentityServicer
 
 # CSI Spec https://github.com/container-storage-interface/spec/blob/master/spec.md
 
 
 class SpringfieldIdentityService(IdentityServicer):
-
     def GetPluginInfo(self, request, context):
+        logger.info("GetPluginInfo()")
         name = driver.DRIVER_NAME
         vendor_version = driver.DRIVER_VERSION
 
         return GetPluginInfoResponse(name=name, vendor_version=vendor_version)
 
     def GetPluginCapabilities(self, request, context):
+        logger.info("GetPluginCapabilities()")
+        control_service = PluginCapability(
+            service=PluginCapability.Service(
+                type=PluginCapability.Service.CONTROLLER_SERVICE
+            )
+        )
 
-        control_service = PluginCapability(service=PluginCapability.Service(
-            type=PluginCapability.Service.CONTROLLER_SERVICE))
+        topology_service = PluginCapability(
+            service=PluginCapability.Service(
+                type=PluginCapability.Service.VOLUME_ACCESSIBILITY_CONSTRAINTS
+            )
+        )
 
-        topology_service = PluginCapability(service=PluginCapability.Service(
-            type=PluginCapability.Service.VOLUME_ACCESSIBILITY_CONSTRAINTS))
+        volume_expansion = PluginCapability(
+            volume_expansion=PluginCapability.VolumeExpansion(
+                type=PluginCapability.VolumeExpansion.ONLINE
+            )
+        )
 
-        volume_expansion = PluginCapability(volume_expansion=PluginCapability.VolumeExpansion(
-            type=PluginCapability.VolumeExpansion.ONLINE))
-
-        capabilities = [
-            control_service,
-            volume_expansion,
-            topology_service
-        ]
+        capabilities = [control_service, volume_expansion, topology_service]
 
         return GetPluginCapabilitiesResponse(capabilities=capabilities)
 
     def Probe(self, request, context):
+        context.set_code(grpc.StatusCode.OK)
         return ProbeResponse()

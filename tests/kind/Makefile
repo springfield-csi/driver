@@ -1,0 +1,106 @@
+KUBERNETES_VERSION := 1.24.2
+HELM_VERSION := 3.9.0
+SPRINGFIELD_CSI_VERSION := 0.1.1
+CERT_MANAGER_VERSION := v1.7.0
+
+KIND_CLUSTER_NAME := springfield-cluster
+
+SUDO := sudo
+CURL := curl -sSLf
+BINDIR := $(shell pwd)/bin
+TMPDIR := /tmp/springfield
+HELM := $(BINDIR)/helm
+KUBECTL := $(BINDIR)/kubectl
+KIND := ../bin/kind
+
+GO_FILES := $(shell find .. -prune -o -path ../e2e -prune -o -name '*.go' -print)
+BACKING_STORE := ./build
+
+BUILD_IMAGE := true
+
+$(KUBECTL):
+	mkdir -p $(BINDIR)
+	$(CURL) https://storage.googleapis.com/kubernetes-release/release/v$(KUBERNETES_VERSION)/bin/linux/amd64/kubectl -o $(KUBECTL)
+	chmod 755 $(KUBECTL)
+
+springfield-csi-driver:
+	$(MAKE) -C .. image IMAGE_PREFIX=ghcr.io/trgill/springfield-csi-driver/
+	$(MAKE) -C .. tag IMAGE_PREFIX=ghcr.io/trgill/springfield-csi-driver/ IMAGE_TAG=$(SPRINGFIELD_CSI_VERSION)
+	docker save -o $@ ghcr.io/trgill/springfield-csi-driver/springfield-csi-driver-with-sidecar:$(SPRINGFIELD_CSI_VERSION)
+
+run:
+	$(MAKE) start-lvmd
+	$(MAKE) launch-kind
+	if [ "$(BUILD_IMAGE)" = "true" ]; then \
+		$(MAKE) build/springfield-csi-driver.img; \
+		$(KIND) load image-archive --name=$(KIND_CLUSTER_NAME) build/springfield-csi-driver.img; \
+	fi
+	$(KUBECTL) apply -f https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.crds.yaml
+	$(KUBECTL) create namespace springfield-system
+	$(KUBECTL) label namespace springfield-system springfield.csi.redhat.com/webhook=ignore
+	$(KUBECTL) label namespace kube-system springfield.csi.redhat.com/webhook=ignore
+	$(HELM) repo add jetstack https://charts.jetstack.io
+	$(HELM) repo update
+	$(HELM) dependency build ../charts/springfield/
+	$(HELM) install --namespace=springfield-system springfield ../charts/springfield/ -f ./values.yaml
+	$(KUBECTL) wait --for=condition=available --timeout=120s -n springfield-system deployments/springfield-controller
+	$(KUBECTL) wait --for=condition=ready --timeout=120s -n springfield-system certificate/springfield-mutatingwebhook
+	timeout 120 sh -c "until $(KUBECTL) apply -f podpvc.yaml; do sleep 10; done"
+	$(KUBECTL) wait --for=condition=ready --timeout=60s -n default pod -l app=example
+
+setup: $(KUBECTL)
+	$(SUDO) apt-get update
+	$(SUDO) apt-get install -y lvm2 thin-provisioning-tools
+	cd ..; $(MAKE) install-kind
+	mkdir -p $(BINDIR)
+	mkdir -p build
+	$(CURL) https://get.helm.sh/helm-v$(HELM_VERSION)-linux-amd64.tar.gz \
+	  | tar xvz -C $(BINDIR) --strip-components 1 linux-amd64/helm
+
+clean: stop-lvmd
+	rm -rf bin/ build/
+
+$(TMPDIR)/scheduler/scheduler-config.yaml: ../deploy/scheduler-config/scheduler-config-v1beta2.yaml
+	mkdir -p $(TMPDIR)/scheduler
+	cp $< $@
+
+$(TMPDIR)/lvmd/lvmd.yaml: ../deploy/lvmd-config/lvmd.yaml
+	mkdir -p $(TMPDIR)/lvmd
+	sed -e 's=/run/springfield/lvmd.sock=$(TMPDIR)/lvmd/lvmd.sock=' $< > $@
+
+launch-kind: $(TMPDIR)/scheduler/scheduler-config.yaml kind/springfield-cluster.yaml
+	$(MAKE) shutdown-kind
+	$(SUDO) rm -rf $(TMPDIR)/controller $(TMPDIR)/worker*
+	sed 's/@KUBERNETES_VERSION@/$(KUBERNETES_VERSION)/; s=@TMPDIR@=$(TMPDIR)='  kind/springfield-cluster.yaml > $(TMPDIR)/springfield-cluster.yaml
+	$(KIND) create cluster --name=$(KIND_CLUSTER_NAME) --config $(TMPDIR)/springfield-cluster.yaml --image kindest/node:v$(KUBERNETES_VERSION)
+
+shutdown-kind:
+	$(KIND) delete cluster --name=$(KIND_CLUSTER_NAME) || true
+	for d in $$($(SUDO) find $(TMPDIR) -type d); do \
+		if $(SUDO) mountpoint -q $$d; then \
+			$(SUDO) umount $$d; \
+		fi; \
+	done
+
+start-lvmd: $(TMPDIR)/lvmd/lvmd.yaml
+	go build -o build/lvmd ../pkg/lvmd
+	if [ -f $(BACKING_STORE)/backing_store ]; then $(MAKE) stop-lvmd; fi; \
+	mkdir -p $(TMPDIR)/worker; \
+	mkdir -p $(TMPDIR)/lvmd; \
+	truncate --size=20G $(BACKING_STORE)/backing_store; \
+	$(SUDO) losetup -f $(BACKING_STORE)/backing_store; \
+	$(SUDO) vgcreate -f -y myvg1 $$($(SUDO) losetup -j $(BACKING_STORE)/backing_store | cut -d: -f1); \
+	$(SUDO) lvcreate -T myvg1/thinpool -L 2G; \
+	$(SUDO) systemd-run --unit=lvmd.service $(shell pwd)/build/lvmd --config=$(TMPDIR)/lvmd/lvmd.yaml; \
+
+stop-lvmd:
+	$(MAKE) shutdown-kind
+	if systemctl is-active -q lvmd.service; then $(SUDO) systemctl stop lvmd.service; fi; \
+	if [ -f $(BACKING_STORE)/backing_store ]; then \
+		$(SUDO) vgremove -ffy myvg1; \
+		$(SUDO) pvremove -ffy $$($(SUDO) losetup -j $(BACKING_STORE)/backing_store | cut -d: -f1); \
+		$(SUDO) losetup -d $$($(SUDO) losetup -j $(BACKING_STORE)/backing_store | cut -d: -f1); \
+		rm -f $(BACKING_STORE)/backing_store; \
+	fi
+
+.PHONY: launch-kind shutdown-kind start-lvmd stop-lvmd run setup clean

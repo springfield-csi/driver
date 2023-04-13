@@ -1,4 +1,4 @@
-# Copyright (C) 2022  Red Hat, Inc.
+# Copyright (C) 2023  Red Hat, Inc.
 #
 # This copyrighted material is made available to anyone wishing to use,
 # modify, copy, or redistribute it subject to the terms and conditions of
@@ -17,6 +17,6 @@
 # Red Hat Author(s): Todd Gill <tgill@redhat.com>
 #
 
-DRIVER_NAME = "springfield"
+DRIVER_NAME = "springfield.csi.redhat.com"
 DRIVER_VERSION = "0.1"
 LOG_NAME = "springfield-csi"
