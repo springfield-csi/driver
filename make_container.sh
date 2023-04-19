@@ -19,8 +19,6 @@ export LINVENESS_PROBE=bin/liveness
 
 rm -f bin/springfield-csi-driver:devel.image 
 
-mkdir -p "$SIDECAR_SRC"
-
 
 if [[ -z "$GITHUB_PAT" ]]; then
     echo "Must provide GITHUB_PAT with write access to ghcr.io/trgill/springfield-csi-driver in environment" 1>&2
