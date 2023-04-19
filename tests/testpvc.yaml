@@ -20,8 +20,8 @@ metadata:
     app: example
 spec:
   containers:
-  - name: nginx
-    image: nginx
+  - name: springfield-test-webserver
+    image: ghcr.io/trgill/springfield-test-webserver:devel
     ports:
       - containerPort: 80
     volumeMounts:
