@@ -17,8 +17,6 @@
 # Red Hat Author(s): Todd Gill <tgill@redhat.com>
 #
 
-from controller import logger
-
 import driver
 import grpc
 from csi_pb2 import (
@@ -28,9 +26,11 @@ from csi_pb2 import (
     PluginCapability,
 )
 from csi_pb2_grpc import IdentityServicer
+import logging
 
 # CSI Spec https://github.com/container-storage-interface/spec/blob/master/spec.md
 
+logger = logging.getLogger("springfield-csi")
 
 class SpringfieldIdentityService(IdentityServicer):
     def GetPluginInfo(self, request, context):

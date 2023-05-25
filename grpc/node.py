@@ -17,7 +17,7 @@
 # Red Hat Author(s): Todd Gill <tgill@redhat.com>
 #
 
-from controller import logger
+
 from google.protobuf.json_format import MessageToJson, MessageToDict
 from csi_pb2_grpc import NodeServicer
 
@@ -40,11 +40,11 @@ from csi_pb2 import (
 import grpc
 
 import controller
-from stratis import STRATIS_PATH, CONTAINER_POOL
-
+import logging
 import os
 from sh import mount, umount
 
+logger = logging.getLogger("springfield-csi")
 
 # CSI Spec https://github.com/container-storage-interface/spec/blob/master/spec.md
 
@@ -54,18 +54,17 @@ class SpringfieldNodeService(NodeServicer):
         self.nodeid = nodeid
 
     def NodeStageVolume(self, request, context):
-        logger.info("NodeStageVolume()")
+        logger.info("NodeStageVolume() : ", request.publish_context)
         
         staging_target_path = request.staging_target_path
+        dev_path = request.publish_context["block_path"].replace("dev","hostdev", 1)
         exists = os.path.exists(staging_target_path)
         if not exists:
             os.makedirs(staging_target_path)
 
-        stratis_dev_path = STRATIS_PATH + "/" + CONTAINER_POOL + "/"
-
-        logger.info("mount :" + stratis_dev_path + request.volume_id + " on: " + staging_target_path + " with : -txfs")
+        logger.info("mount :" + dev_path + " on: " + staging_target_path + " with : -txfs")
         try:
-            mount(stratis_dev_path + request.volume_id, staging_target_path, "-txfs")
+            mount(dev_path, staging_target_path, "-txfs")
         except OSError as e:
           logger.warning(
                 "Warining mount failed: %s : %s" % (staging_target_path, e.strerror)

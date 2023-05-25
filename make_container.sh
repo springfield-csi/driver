@@ -4,7 +4,6 @@
 # Note: docker builds in /tmp/docker-xxx, so using relative paths
 # to reference parent directories to build the image fails.
 
-export CLUSTER_NAME=springfield-cluster
 export KUBERNETES_VERSION=v1.24.2
 export HELM_VERSION=v3.10.3
 export BINDIR=./bin
@@ -15,7 +14,7 @@ export KIND=bin/kind
 export KUBECTL=bin/kubectl
 export HELM=bin/helm
 export CURL="curl -sSLf"
-export LINVENESS_PROBE=bin/liveness
+
 
 rm -f bin/springfield-csi-driver:devel.image 
 

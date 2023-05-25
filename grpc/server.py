@@ -17,6 +17,21 @@
 # Red Hat Author(s): Todd Gill <tgill@redhat.com>
 #
 
+import logging
+import sys
+
+file_handler = logging.FileHandler(filename="/tmp/csi_driver.log")
+stdout_handler = logging.StreamHandler(stream=sys.stdout)
+handlers = [file_handler, stdout_handler]
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
+    handlers=handlers,
+)
+
+logger = logging.getLogger("springfield-csi")
+
 import concurrent.futures as futures
 import csi_pb2_grpc
 import grpc
@@ -24,19 +39,18 @@ import grpc
 import argparse
 import json
 import socket
-import sys
+
 from pathlib import Path
 
-
+from node import SpringfieldNodeService
 from identity import SpringfieldIdentityService
 from controller import SpringfieldControllerService
-from controller import logger
-from stratis import CONTAINER_POOL, pool_create, pool_object_path
 
-from node import SpringfieldNodeService
+
 
 def initilize_disks(storage_devs):
 
+    logger.info("initilize_disks")
     # path = Path(STORAGE_DEVS_FILE)
 
     # if not path.is_file():
@@ -57,13 +71,13 @@ def initilize_disks(storage_devs):
     #     logger.error('Failed to parse {}', STORAGE_DEVS_FILE)
     #     exit()
 
-    pool_path = pool_object_path(CONTAINER_POOL)
+    # pool_path = pool_object_path(CONTAINER_POOL)
 
-    if pool_path is None:
-        (result, rc, msg) = pool_create(CONTAINER_POOL, storage_devs)
-        if (rc != 0): 
-            logger.error("Failed to initialize stratis pool: " + CONTAINER_POOL + " - " + msg)
-            exit()
+    # if pool_path is None:
+    #     (result, rc, msg) = pool_create(CONTAINER_POOL, storage_devs)
+    #     if (rc != 0): 
+    #         logger.error("Failed to initialize stratis pool: " + CONTAINER_POOL + " - " + msg)
+    #         exit()
         
 
 
@@ -106,25 +120,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--nodeonly", dest="nodeonly", action=argparse.BooleanOptionalAction
     )
-    parser.add_argument(
-        "--blockdevs", dest="blockdevs", type=str, default=""
-    )
+
     args = parser.parse_args()
 
     port = args.port
     addr = args.addr
     nodeid = args.nodeid
 
-    # Accept a blockdev list in either "/dev/sda,/dev/sdb" or [/dev/sda /dev/sdb] format.
-    # Helm passes lists via set values in the [/dev/sda /dev/sdb] format.
-    blockdevs=args.blockdevs.replace('\'', '').replace(' ', ',').replace('[','').replace(']', '')
-
     logger.info(sys.argv)
 
     if not args.nodeonly:
-        blockdevs_list = blockdevs.split(',')
-        logger.info("Running in controller mode : " + blockdevs)
-        initilize_disks(blockdevs_list)
+        logger.info("Running in controller mode")
     else:
         logger.info("Running in node mode")
 

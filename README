@@ -67,13 +67,14 @@ alias vl='kubectl logs --namespace springfield-system --tail=1000'
 alias pvc='kubectl describe pvc'
 alias pv='kubectl describe pv'
 
-# To open a bash script inside the CSI node or controller:
+# To open a bash shell inside the CSI node or controller:
 
 kubectl exec --stdin --namespace springfield-system --tty springfield-XXX -- /bin/bash
 
-# To open a bash script inside the test pod:
+# To open a sh shell inside the test pod:
+# Note: the base image for the test container doesn't include bash
 
-kubectl exec --stdin --namespace default --tty springfield-pvc-test -- /bin/bash
+kubectl exec --stdin --namespace default --tty springfield-pvc-test -- /bin/sh
 
 # Inside the test pod, the PVC will be mounted on /springfield-volume
 

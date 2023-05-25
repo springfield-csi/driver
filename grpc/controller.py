@@ -19,9 +19,9 @@
 
 from concurrent import futures
 import threading
-import logging
 import argparse
 import os
+import logging
 import sys
 import grpc
 import socket
@@ -30,21 +30,18 @@ import csi_pb2
 from csi_pb2 import ControllerServiceCapability
 from csi_pb2_grpc import ControllerServicer
 import json
-from stratis import CONTAINER_POOL, fs_create, fs_destroy, pool_create, pool_object_path
-from google.protobuf.json_format import MessageToDict
-
-file_handler = logging.FileHandler(filename="/tmp/csi_driver.log")
-stdout_handler = logging.StreamHandler(stream=sys.stdout)
-handlers = [file_handler, stdout_handler]
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
-    handlers=handlers,
+from blivet_interface import (
+    fs_create,
+    fs_destroy,
+    StorageType,
+    get_property,
+    DEVICE_INTERFACE,
+    reset,
 )
 
-logger = logging.getLogger("LOGGER_NAME")
+from google.protobuf.json_format import MessageToDict
 
+logger = logging.getLogger("springfield-csi")
 
 NODE_NAME_TOPOLOGY_KEY = "hostname"
 
@@ -82,6 +79,7 @@ def print_volume_list():
     print(volume_list)
     print("\n")
 
+
 def get_capability(capability):
     access_type = capability.WhichOneof("access_type")
 
@@ -102,14 +100,14 @@ def get_capability(capability):
         ),
     )
 
+
 class SpringfieldControllerService(ControllerServicer):
     def __init__(self, nodeid):
         self.nodeid = nodeid
+        reset()
 
     def CreateVolume(self, request, context):
         logger.info("CreateVolume()")
-        sys.stdout.flush()
-        sys.stderr.flush()
 
         # Validate the parameters for the request
         if request.name == None:
@@ -118,8 +116,7 @@ class SpringfieldControllerService(ControllerServicer):
         request_name = request.name
 
         logger.info("CreateVolume name = %s", request_name)
-        sys.stdout.flush()
-        sys.stderr.flush()
+        logger.info(request)
 
         if request.capacity_range.required_bytes:
             size = request.capacity_range.required_bytes
@@ -145,7 +142,6 @@ class SpringfieldControllerService(ControllerServicer):
                     grpc.StatusCode.ALREADY_EXISTS,
                     "Volume already exists with different capacity",
                 )
-
         if len(request.volume_capabilities) == 0:
             context.abort(
                 grpc.StatusCode.INVALID_ARGUMENT, "Must have at least one capabiltiy"
@@ -168,6 +164,7 @@ class SpringfieldControllerService(ControllerServicer):
         except KeyError:
             logger.info("Topology key not found... why?")
 
+        logger.info("request.volume_capabilities:")
         for capability in request.volume_capabilities:
             logger.info(capability)
             fstype = capability.mount.fs_type
@@ -196,27 +193,45 @@ class SpringfieldControllerService(ControllerServicer):
                     "Unsupported access mode: {csi_pb2.VolumeCapability.AccessMode.Mode.Name(volume_capability.access_mode.mode)}",
                 )
 
-        pool_path = pool_object_path(CONTAINER_POOL)
+        disks = list()
+        blivettype = ""
 
-        if pool_path == None: 
-            context.abort(
-                grpc.StatusCode.FAILED_PRECONDITION,
-                "Stratis pool not found: " + CONTAINER_POOL,
-            )
+        for k, v in request.parameters.items():
+            logger.info(f"{k}: {v}")
+            if k == "disks":
+                disks = v.split(",")
+            if k == "blivettype":
+                blivettype = v
 
-        fs_create(pool_path, request.name)
+        logger.info("blivettype = " + blivettype)
+        typeparam = StorageType.DEVICE_TYPE_LVM
+
+        if blivettype == "DEVICE_TYPE_LVM":
+            typeparam = StorageType.DEVICE_TYPE_LVM
+        elif blivettype == "DEVICE_TYPE_MD":
+            typeparam = StorageType.DEVICE_TYPE_MD
+        elif blivettype == "DEVICE_TYPE_STRATIS":
+            typeparam = StorageType.DEVICE_TYPE_STRATIS
+        elif blivettype == "DEVICE_TYPE_BTRFS":
+            typeparam = StorageType.DEVICE_TYPE_BTRFS
+
+        new_object_path = fs_create(request.name, disks, typeparam, "3GB")
 
         logger.info("hostname = %s, nodename = %s", socket.gethostname(), node_name)
+        block_path = get_property(new_object_path, DEVICE_INTERFACE, "Path")
+        csi_metadata = {
+            "csi_name": request.name,
+            "block_path": block_path,
+        }
 
         csi_volume = csi_pb2.Volume(
+            volume_context=csi_metadata,
             volume_id=request.name,
             capacity_bytes=size,
             accessible_topology=[
                 csi_pb2.Topology(segments={"hostname": socket.gethostname()})
             ],
         )
-        # TODO: get the path from dbus
-        block_path = "/dev/stratis/" + CONTAINER_POOL + "/" + request.name
 
         volume_map = VolumeMap(request.name, csi_volume, request.name, block_path)
         logger.info(volume_map)
@@ -245,11 +260,10 @@ class SpringfieldControllerService(ControllerServicer):
                 volume_list.remove(volume_map)
 
         print_volume_list()
-        
+
         return csi_pb2.DeleteVolumeResponse()
 
     def ControllerPublishVolume(self, request, context):
-
         logger.info("ControllerPublishVolume()")
         access_type = request.volume_capability.WhichOneof("access_type")
 
@@ -267,11 +281,13 @@ class SpringfieldControllerService(ControllerServicer):
         volume_map = get_volume(request.volume_id)
 
         if volume_map == None:
-            context.abort(
-                grpc.StatusCode.NOT_FOUND, "request.volume_id does not exits"
-            )
+            context.abort(grpc.StatusCode.NOT_FOUND, "request.volume_id does not exits")
 
-        logger.info("ControllerPublishVolume: request.node_id = %s, self.nodeid = %s", request.node_id, self.nodeid)
+        logger.info(
+            "ControllerPublishVolume: request.node_id = %s, self.nodeid = %s",
+            request.node_id,
+            self.nodeid,
+        )
 
         # if request.node_id != self.nodeid:
         #     context.abort(grpc.StatusCode.NOT_FOUND, "Mismatched node id")
@@ -350,12 +366,6 @@ class SpringfieldControllerService(ControllerServicer):
 
     def ListVolumes(self, request, context):
         logger.info("ListVolumes()")
-        # blivet_handle.reset()      # detect system storage configuration
-        # print(str(blivet_handle.devicetree))
-
-        # # TODO: update to just add the volumes?
-        # device_json = devicetree_tojson(blivet_handle.devicetree)
-
         print_volume_list()
         next_token = None
         if request.starting_token:

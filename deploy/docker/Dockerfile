@@ -17,7 +17,7 @@
 # Red Hat Author(s): Todd Gill <tgill@redhat.com>
 #
 
-FROM python:3.9
+FROM python:3.11
 
 ARG BUILD_DATE
 
