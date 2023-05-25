@@ -186,8 +186,6 @@ spec:
       containers:
         - name: springfield-csi-driver
           image: ghcr.io/trgill/springfield-csi-driver:devel
-          args:
-            - --blockdevs={{.Values.blockdevs}}
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
@@ -276,9 +274,9 @@ spec:
           hostPath:
             path: /var/lib/kubelet/plugins_registry/
             type: Directory
-        - name: stratis-dir
+        - name: hostdev-dir
           hostPath:
-            path: /stratis
+            path: /hostdev
             type: Directory
         - name: dbus-socket
           hostPath:
