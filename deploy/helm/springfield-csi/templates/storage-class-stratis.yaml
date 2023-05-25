@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 provisioner: springfield.csi.redhat.com
 parameters:
-  disks: /dev/sdc,/dev/sdd
+  disks:
   blivettype: DEVICE_TYPE_STRATIS
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true

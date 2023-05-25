@@ -12,7 +12,7 @@ metadata:
 provisioner: springfield.csi.redhat.com
 parameters:
   fstype: xfs
-  disks: /dev/sdg,/dev/sdh
+  disks: 
   blivettype: DEVICE_TYPE_MD
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true

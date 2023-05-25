@@ -12,7 +12,7 @@ metadata:
 provisioner: springfield.csi.redhat.com
 parameters:
   fstype: xfs
-  disks: /dev/sde,/dev/sdf
+  disks:
   blivettype: DEVICE_TYPE_BTRFS
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
