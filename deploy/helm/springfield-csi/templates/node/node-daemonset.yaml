@@ -91,8 +91,8 @@ spec:
               mountPath: /registration
             - mountPath: /var/run/dbus
               name: dbus-socket
-            - name: stratis-dir
-              mountPath: /stratis
+            - name: hostdev-dir
+              mountPath: /hostdev
             - name: pod-volumes-dir
               mountPath: /var/lib/kubelet/pods
               mountPropagation: "Bidirectional"
@@ -148,9 +148,9 @@ spec:
           hostPath:
             path: /host_dbus
             type: Directory
-        - name: stratis-dir
+        - name: hostdev-dir
           hostPath:
-            path: /stratis
+            path: /hostdev
             type: Directory
         - name: pod-volumes-dir
           hostPath:
