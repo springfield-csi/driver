@@ -1,46 +1,190 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: springfield-pvc-claim
+  name: springfield-lvm-pvc-claim
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
-  storageClassName: springfield-csi
+  storageClassName: springfield-csi-lvm
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: springfield-btrfs-pvc-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: springfield-csi-btrfs
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: springfield-stratis-pvc-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: springfield-csi-stratis
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: springfield-md-pvc-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: springfield-csi-md
+
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: springfield-pvc-test
+  name: springfield-pvc-lvm-test
   namespace: default
   labels:
-    app.kubernetes.io/name: springfield-test-pod
+    app.kubernetes.io/name: springfield-test-lvm-pod
     app: example
 spec:
   containers:
   - name: springfield-test-webserver
     image: ghcr.io/trgill/springfield-test-webserver:devel
     ports:
-      - containerPort: 80
+      - containerPort: 20
     volumeMounts:
     - mountPath: /springfield-volume
       name: springfield-volume
   volumes:
   - name: springfield-volume
     persistentVolumeClaim:
-      claimName: springfield-pvc-claim
+      claimName: springfield-pvc-lvm-claim
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: springfield-pvc-btrfs-test
+  namespace: default
+  labels:
+    app.kubernetes.io/name: springfield-test-btrfs-pod
+    app: example
+spec:
+  containers:
+  - name: springfield-test-webserver
+    image: ghcr.io/trgill/springfield-test-webserver:devel
+    ports:
+      - containerPort: 30
+    volumeMounts:
+    - mountPath: /springfield-volume
+      name: springfield-volume
+  volumes:
+  - name: springfield-volume
+    persistentVolumeClaim:
+      claimName: springfield-pvc-btrfs-claim
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: springfield-pvc-md-test
+  namespace: default
+  labels:
+    app.kubernetes.io/name: springfield-test-md-pod
+    app: example
+spec:
+  containers:
+  - name: springfield-test-webserver
+    image: ghcr.io/trgill/springfield-test-webserver:devel
+    ports:
+      - containerPort: 40
+    volumeMounts:
+    - mountPath: /springfield-volume
+      name: springfield-volume
+  volumes:
+  - name: springfield-volume
+    persistentVolumeClaim:
+      claimName: springfield-pvc-md-claim
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: springfield-pvc-stratis-test
+  namespace: default
+  labels:
+    app.kubernetes.io/name: springfield-test-stratis-pod
+    app: example
+spec:
+  containers:
+  - name: springfield-test-webserver
+    image: ghcr.io/trgill/springfield-test-webserver:devel
+    ports:
+      - containerPort: 50
+    volumeMounts:
+    - mountPath: /springfield-volume
+      name: springfield-volume
+  volumes:
+  - name: springfield-volume
+    persistentVolumeClaim:
+      claimName: springfield-pvc-stratis-claim
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-nginx
+  name: nginx-lvm
   labels:
-    run: my-nginx
+    run: nginx-lvm
 spec:
   ports:
-  - port: 80
+  - port: 20
     protocol: TCP
   selector:
-    run: my-nginx
+    run: nginx-lvm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-btrfs
+  labels:
+    run: nginx-btrfs
+spec:
+  ports:
+  - port: 30
+    protocol: TCP
+  selector:
+    run: nginx-btrfs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-md
+  labels:
+    run: nginx-md
+spec:
+  ports:
+  - port: 40
+    protocol: TCP
+  selector:
+    run: nginx-md
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-stratis
+  labels:
+    run: nginx-stratis
+spec:
+  ports:
+  - port: 50
+    protocol: TCP
+  selector:
+    run: nginx-stratis
+
