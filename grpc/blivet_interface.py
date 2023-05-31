@@ -39,6 +39,8 @@ OBJECT_MANAGER = "org.freedesktop.DBus.ObjectManager"
 BUS = dbus.SystemBus()
 BUS_NAME = "com.redhat.Blivet0"
 TOP_OBJECT = "/com/redhat/Blivet0/Blivet"
+
+
 REVISION_NUMBER = 1
 REVISION = f"r{REVISION_NUMBER}"
 
@@ -50,13 +52,19 @@ TIMEOUT = 10 * 1000
 BLIVET_INTERFACE = f"{BUS_NAME}.Blivet"
 DEVICE_INTERFACE = f"{BUS_NAME}.Device"
 FORMAT_INTERFACE = f"{BUS_NAME}.Format"
+PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 
 top_object = BUS.get_object(BUS_NAME, TOP_OBJECT)
+
 blivet_interface = dbus.Interface(
     top_object,
     BLIVET_INTERFACE,
 )
 
+properties_interface = dbus.Interface(
+    top_object,
+    PROPERTIES_INTERFACE,
+)
 
 def get_managed_objects():
     """
@@ -249,14 +257,18 @@ def fs_create(name, disks_list, storage_type, size):
 
 
 if __name__ == "__main__":
+
+    props = properties_interface.GetAll(BLIVET_INTERFACE)
+    print_dict(BLIVET_INTERFACE, props)
+
     blivet_interface.Reset()
-    disks = list(["/dev/sda", "/dev/sdb", "/dev/sdc"])
-    new_object_path = fs_create("test_fs", disks, StorageType.DEVICE_TYPE_LVM, "3GB")
+    blockdevs_list = list(["", "", ""])
+    new_object_path = fs_create("test_fs", blockdevs_list, StorageType.DEVICE_TYPE_LVM, "3GB")
     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-    remove_device(new_object_path, disks, mount_point)
+    remove_device(new_object_path, blockdevs_list, mount_point)
     
     blivet_interface.Reset()
 
-    new_object_path = fs_create("test_fs", disks, StorageType.DEVICE_TYPE_LVM, "3GB")
+    new_object_path = fs_create("test_fs", blockdevs_list, StorageType.DEVICE_TYPE_LVM, "3GB")
     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-    remove_device(new_object_path, disks, mount_point)
+    remove_device(new_object_path, blockdevs_list, mount_point)
