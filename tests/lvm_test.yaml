@@ -31,7 +31,7 @@ spec:
   volumes:
   - name: springfield-volume
     persistentVolumeClaim:
-      claimName: springfield-pvc-lvm-claim
+      claimName: springfield-lvm-pvc-claim
 ---
 apiVersion: v1
 kind: Service

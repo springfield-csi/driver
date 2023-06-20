@@ -152,7 +152,17 @@ kind: RoleBinding
 metadata:
   labels:
     app.kubernetes.io/name: springfield-csi
+    app.kubernetes.io/instance: springfield-csi
+    app.kubernetes.io/instance: springfield-csi-stratis
+    app.kubernetes.io/instance: springfield-csi-lvm
+    app.kubernetes.io/instance: springfield-csi-btrfs
+    app.kubernetes.io/instance: springfield-csi-md
+    app.kubernetes.io/name: springfield-csi-stratis
+    app.kubernetes.io/name: springfield-csi-lvm
+    app.kubernetes.io/name: springfield-csi-btrfs
+    app.kubernetes.io/name: springfield-csi-md
     app.kubernetes.io/component: snapshotter-role
+
   name: springfield-csi-snapshotter-role
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -165,22 +175,49 @@ subjects:
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
-  name: springfield-controller
+  name: springfield-csi
   labels:
     app.kubernetes.io/name: springfield-csi
+    app.kubernetes.io/instance: springfield-csi
+    app.kubernetes.io/instance: springfield-csi-stratis
+    app.kubernetes.io/instance: springfield-csi-lvm
+    app.kubernetes.io/instance: springfield-csi-btrfs
+    app.kubernetes.io/instance: springfield-csi-md
+    app.kubernetes.io/name: springfield-csi-stratis
+    app.kubernetes.io/name: springfield-csi-lvm
+    app.kubernetes.io/name: springfield-csi-btrfs
+    app.kubernetes.io/name: springfield-csi-md
     app.kubernetes.io/component: plugin
 spec:
   serviceName: "springfield-csi"
   replicas: 1
   selector:
     matchLabels:
-      app: springfield-controller
-
+      app.kubernetes.io/name: springfield-csi
+      app.kubernetes.io/instance: springfield-csi
+      app.kubernetes.io/instance: springfield-csi-stratis
+      app.kubernetes.io/instance: springfield-csi-lvm
+      app.kubernetes.io/instance: springfield-csi-btrfs
+      app.kubernetes.io/instance: springfield-csi-md
+      app.kubernetes.io/name: springfield-csi-stratis
+      app.kubernetes.io/name: springfield-csi-lvm
+      app.kubernetes.io/name: springfield-csi-btrfs
+      app.kubernetes.io/name: springfield-csi-md
+      app.kubernetes.io/component: plugin
   template:
     metadata:
       labels:
-        app: springfield-controller
-        role: control-plane
+        app.kubernetes.io/name: springfield-csi
+        app.kubernetes.io/instance: springfield-csi
+        app.kubernetes.io/instance: springfield-csi-stratis
+        app.kubernetes.io/instance: springfield-csi-lvm
+        app.kubernetes.io/instance: springfield-csi-btrfs
+        app.kubernetes.io/instance: springfield-csi-md
+        app.kubernetes.io/name: springfield-csi-stratis
+        app.kubernetes.io/name: springfield-csi-lvm
+        app.kubernetes.io/name: springfield-csi-btrfs
+        app.kubernetes.io/name: springfield-csi-md
+        app.kubernetes.io/component: plugin
     spec:
       serviceAccountName: springfield-csi-sa
       containers:
@@ -274,9 +311,9 @@ spec:
           hostPath:
             path: /var/lib/kubelet/plugins_registry/
             type: Directory
-        - name: hostdev-dir
+        - name: stratis-dir
           hostPath:
-            path: /hostdev
+            path: /stratis
             type: Directory
         - name: dbus-socket
           hostPath:

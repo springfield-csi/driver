@@ -14,5 +14,6 @@ parameters:
   fstype: xfs
   disks: /dev/sdg,/dev/sdh
   blivettype: DEVICE_TYPE_STRATIS
+volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
-volumeBindingMode: Immediate
+

@@ -243,7 +243,7 @@ class SpringfieldControllerService(ControllerServicer):
             volume_id=request.name,
             capacity_bytes=size,
             accessible_topology=[
-                csi_pb2.Topology(segments={"hostname": socket.gethostname()})
+                csi_pb2.Topology(segments={"hostname": node_name})
             ],
         )
 

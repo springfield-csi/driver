@@ -14,5 +14,5 @@ parameters:
   fstype: xfs
   disks: /dev/sda,/dev/sdb
   blivettype: DEVICE_TYPE_LVM
-volumeBindingMode: Immediate
+volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true

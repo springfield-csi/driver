@@ -32,7 +32,7 @@ $HELM dependency build ./deploy/helm/springfield-csi/
 $HELM install --debug --namespace=springfield-system springfield ./deploy/helm/springfield-csi/
 
 echo "Waiting for CSI driver to deploy...."
-$KUBECTL wait -l statefulset.kubernetes.io/pod-name=springfield-controller-0 -n springfield-system --for=condition=ready pod --timeout=-100s
+$KUBECTL wait -l statefulset.kubernetes.io/pod-name=springfield-csi-0 -n springfield-system --for=condition=ready pod --timeout=-100s
 
 if [ $? -eq 0 ]
 then

@@ -14,5 +14,5 @@ parameters:
   fstype: btrfs
   disks: /dev/sdc,/dev/sdd
   blivettype: DEVICE_TYPE_BTRFS
-volumeBindingMode: Immediate
+volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true

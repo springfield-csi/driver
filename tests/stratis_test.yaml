@@ -8,7 +8,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: springfield-csi
+  storageClassName: springfield-csi-stratis
 
 ---
 apiVersion: v1
@@ -31,7 +31,7 @@ spec:
   volumes:
   - name: springfield-volume
     persistentVolumeClaim:
-      claimName: springfield-pvc-stratis-claim
+      claimName: springfield-stratis-pvc-claim
 ---
 apiVersion: v1
 kind: Service

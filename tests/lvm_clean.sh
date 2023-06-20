@@ -4,5 +4,5 @@ export KUBECTL=../bin/kubectl
 
 $KUBECTL delete pod springfield-pvc-lvm-test
 
-$KUBECTL delete pvc springfield-pvc-lvm-claim
+$KUBECTL delete pvc springfield-lvm-pvc-claim 
 
