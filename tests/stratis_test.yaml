@@ -1,0 +1,47 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: springfield-stratis-pvc-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: springfield-csi
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: springfield-pvc-stratis-test
+  namespace: default
+  labels:
+    app.kubernetes.io/name: springfield-test-stratis-pod
+    app: stratis-example
+spec:
+  containers:
+  - name: springfield-test-webserver
+    image: ghcr.io/trgill/springfield-test-webserver:devel
+    ports:
+      - containerPort: 30
+    volumeMounts:
+    - mountPath: /springfield-volume
+      name: springfield-volume
+  volumes:
+  - name: springfield-volume
+    persistentVolumeClaim:
+      claimName: springfield-pvc-stratis-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx
+  labels:
+    run: my-nginx
+spec:
+  ports:
+  - port: 30
+    protocol: TCP
+  selector:
+    run: my-nginx

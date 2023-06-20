@@ -11,8 +11,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 provisioner: springfield.csi.redhat.com
 parameters:
-  disks:
+  fstype: xfs
+  disks: /dev/sdg,/dev/sdh
   blivettype: DEVICE_TYPE_STRATIS
-volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 volumeBindingMode: Immediate

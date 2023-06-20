@@ -165,7 +165,7 @@ subjects:
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
-  name: springfield-csi
+  name: springfield-controller
   labels:
     app.kubernetes.io/name: springfield-csi
     app.kubernetes.io/component: plugin
@@ -174,13 +174,13 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: springfield-csi
-      app.kubernetes.io/component: plugin
+      app: springfield-controller
+
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: springfield-csi
-        app.kubernetes.io/component: plugin
+        app: springfield-controller
+        role: control-plane
     spec:
       serviceAccountName: springfield-csi-sa
       containers:

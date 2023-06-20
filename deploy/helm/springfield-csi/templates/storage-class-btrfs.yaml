@@ -11,9 +11,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 provisioner: springfield.csi.redhat.com
 parameters:
-  fstype: xfs
-  disks:
+  fstype: btrfs
+  disks: /dev/sdc,/dev/sdd
   blivettype: DEVICE_TYPE_BTRFS
-volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
 volumeBindingMode: Immediate
+allowVolumeExpansion: true

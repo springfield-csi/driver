@@ -22,6 +22,9 @@ import sys
 import sh
 import dbus
 import logging
+import time
+
+timeout=600
 
 logger = logging.getLogger("springfield-csi")
 
@@ -45,7 +48,7 @@ REVISION_NUMBER = 1
 REVISION = f"r{REVISION_NUMBER}"
 
 
-TIMEOUT = 10 * 1000
+TIMEOUT = 600
 
 # TODO: Add revision to dbus interface.  Once completed, update to:
 # f"{BUS_NAME}.Blivet.{REVISION}"
@@ -82,27 +85,27 @@ def get_managed_objects():
     return object_manager.GetManagedObjects(timeout=TIMEOUT)
 
 
-def remove_device(path, blockdevs_list, mountpoint):
+def remove_device(device_object_path, blockdevs_list, mountpoint):
     logger.info("remove_device()")
 
-    if mountpoint:
-        try:
-            sh.umount(mountpoint)
-        except:
-            pass
+    # Using the format_interface.Teardown() will unmount the FS if mounted
+    format_object_path = get_property(device_object_path, DEVICE_INTERFACE, "Format")
+    format_proxy = BUS.get_object(BUS_NAME, format_object_path)
+    format_interface = dbus.Interface(
+        format_proxy,
+        FORMAT_INTERFACE,
+    )
+    format_interface.Teardown()
 
-    blivet_interface.RemoveDevice(path)
+    # Remove the top level device 
+    blivet_interface.RemoveDevice(device_object_path, timeout=TIMEOUT)
 
-    blivet_interface.Commit()
+    # Remove the block devices that were used
+    object_paths = get_object_paths(blockdevs_list)
+    for disk_object_path in object_paths:
+        blivet_interface.RemoveDevice(disk_object_path, timeout=TIMEOUT)
 
-    # object_paths = get_object_paths(blockdevs_list)
-
-    # print("To Use", object_paths)
-
-    # for disk_object_path in object_paths:
-    #     blivet_interface.InitializeDisk(disk_object_path)
-
-    # blivet_interface.Commit()
+    blivet_interface.Commit(timeout=TIMEOUT)
 
 
 def list_device_objects():
@@ -116,9 +119,21 @@ def list_device_objects():
     ]
     return return_objects
 
+def print_object_paths(dict_type, print_dict):
+    print(dict_type)
+    dict_keys = list(print_dict.keys())
+    dict_keys.sort()
+    sorted_dict = {i: print_dict[i] for i in dict_keys}
+    
+    for key, value in print_dict.items():
+        print("    ", key, "\t: ")
 
 def print_dict(dict_type, print_dict):
     print(dict_type)
+    dict_keys = list(print_dict.keys())
+    dict_keys.sort()
+    sorted_dict = {i: print_dict[i] for i in dict_keys}
+    
     for key, value in print_dict.items():
         print("    ", key, "\t: ", value)
 
@@ -132,9 +147,9 @@ def print_properties(path, interface):
     print_dict(interface, props)
 
 
-def get_property(path, interface, value):
+def get_property(object_path, interface, value):
     logger.info("get_property()")
-    property_object = BUS.get_object(BUS_NAME, path)
+    property_object = BUS.get_object(BUS_NAME, object_path)
     properties_interface = dbus.Interface(
         property_object, dbus_interface="org.freedesktop.DBus.Properties"
     )
@@ -153,7 +168,7 @@ def lvm_create(disk_list, fs_name, size):
         "raid_level": "raid1",
     }
 
-    return blivet_interface.Factory(kwargs)
+    return blivet_interface.Factory(kwargs, timeout=TIMEOUT)
 
 
 def btrfs_create(disk_list, fs_name, size):
@@ -168,7 +183,7 @@ def btrfs_create(disk_list, fs_name, size):
         "fstype": "btrfs",
     }
 
-    return blivet_interface.Factory(kwargs)
+    return blivet_interface.Factory(kwargs, timeout=TIMEOUT)
 
 
 def md_create(disk_list, fs_name, size):
@@ -183,7 +198,7 @@ def md_create(disk_list, fs_name, size):
         "container_raid_level": "raid1",
     }
 
-    return blivet_interface.Factory(kwargs)
+    return blivet_interface.Factory(kwargs, timeout=TIMEOUT)
 
 
 def stratis_create(disk_list, fs_name, size):
@@ -195,22 +210,16 @@ def stratis_create(disk_list, fs_name, size):
         "name": fs_name,
     }
 
-    return blivet_interface.Factory(kwargs)
+    return blivet_interface.Factory(kwargs, timeout=TIMEOUT)
 
 def get_object_paths(blockdevs_list):
     logger.info("get_object_paths()")
-    objects = get_managed_objects()
 
     object_paths = list()
-    for object_path in blivet_interface.ListDevices():
-        device = objects[object_path][DEVICE_INTERFACE]
-        #print_properties(object_path, DEVICE_INTERFACE)
-        #print_properties(device["Format"], FORMAT_INTERFACE)
 
-        # search for the disk object paths
-        for to_use in blockdevs_list:
-            if to_use == get_property(object_path, DEVICE_INTERFACE, "Path"):
-                object_paths.append(str(object_path))
+    for to_use in blockdevs_list:
+        object_path = blivet_interface.ResolveDevice(to_use, timeout=TIMEOUT)
+        object_paths.append(str(object_path))
 
     print("object paths:", object_paths)
     return object_paths
@@ -222,15 +231,15 @@ def initialize_disks(blockdevs_list):
     print("To Use:", object_paths)
 
     for disk_object_path in object_paths:
-        blivet_interface.InitializeDisk(disk_object_path)
+        blivet_interface.InitializeDisk(disk_object_path, timeout=TIMEOUT)
         print_properties(disk_object_path, DEVICE_INTERFACE)
 
-    blivet_interface.Commit()
+    blivet_interface.Commit(timeout=TIMEOUT)
     print("initialize_disks: blivet_interface.Commit() completed")
     return object_paths
 
 def reset():
-    blivet_interface.Reset()
+    blivet_interface.Reset(timeout=TIMEOUT)
 
 def fs_destroy(path, disks):
     logger.info("fs_destroy()")
@@ -252,23 +261,48 @@ def fs_create(name, disks_list, storage_type, size):
     elif storage_type == StorageType.DEVICE_TYPE_STRATIS:
         newdev_object_path = stratis_create(disk_object_paths, name, size)
 
-    blivet_interface.Commit()
+    blivet_interface.Commit(timeout=TIMEOUT)
+
     return newdev_object_path
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    props = properties_interface.GetAll(BLIVET_INTERFACE)
-    print_dict(BLIVET_INTERFACE, props)
+#     blivet_interface.Reset(timeout=TIMEOUT)
 
-    blivet_interface.Reset()
-    blockdevs_list = list(["", "", ""])
-    new_object_path = fs_create("test_fs", blockdevs_list, StorageType.DEVICE_TYPE_LVM, "3GB")
-    mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-    remove_device(new_object_path, blockdevs_list, mount_point)
+#     props = properties_interface.GetAll(BLIVET_INTERFACE, timeout=TIMEOUT)
+#     print_dict(BLIVET_INTERFACE, props)
+
+#     blockdevs_list = list(["/dev/sda", "/dev/sdb"])
+
+#     SIZE = "3 GiB"
+
+#     new_object_path = fs_create("test_fs_lvm", blockdevs_list, StorageType.DEVICE_TYPE_LVM, SIZE)
+#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+#     if new_object_path:
+#         print_properties(new_object_path, DEVICE_INTERFACE)
+#         remove_device(new_object_path, blockdevs_list, mount_point)
+
+#     blockdevs_list = list(["/dev/sdc", "/dev/sdd"])
+
+#     new_object_path = fs_create("test_fs_btrfs", blockdevs_list, StorageType.DEVICE_TYPE_BTRFS, SIZE)
+#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+#     if new_object_path:
+#         print_properties(new_object_path, DEVICE_INTERFACE)
+#         remove_device(new_object_path, blockdevs_list, mount_point)
     
-    blivet_interface.Reset()
+#     blockdevs_list = list(["/dev/sde", "/dev/sdf"])
 
-    new_object_path = fs_create("test_fs", blockdevs_list, StorageType.DEVICE_TYPE_LVM, "3GB")
-    mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-    remove_device(new_object_path, blockdevs_list, mount_point)
+#     new_object_path = fs_create("test_fs_md", blockdevs_list, StorageType.DEVICE_TYPE_MD, SIZE)
+#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+#     if new_object_path:
+#         print_properties(new_object_path, DEVICE_INTERFACE)
+#         remove_device(new_object_path, blockdevs_list, mount_point)
+    
+#     blockdevs_list = list(["/dev/sdg", "/dev/sdh"])
+
+#     new_object_path = fs_create("test_fs_stratis", blockdevs_list, StorageType.DEVICE_TYPE_STRATIS, SIZE)
+#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+#     if new_object_path:
+#         print_properties(new_object_path, DEVICE_INTERFACE)
+#         remove_device(new_object_path, blockdevs_list, mount_point)

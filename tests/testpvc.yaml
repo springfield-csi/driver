@@ -9,7 +9,7 @@ spec:
     requests:
       storage: 1Gi
   storageClassName: springfield-csi-lvm
-
+---
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -21,7 +21,7 @@ spec:
     requests:
       storage: 1Gi
   storageClassName: springfield-csi-btrfs
-
+---
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -33,7 +33,7 @@ spec:
     requests:
       storage: 1Gi
   storageClassName: springfield-csi-stratis
-
+---
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
