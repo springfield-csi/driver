@@ -36,9 +36,19 @@ metadata:
   name: springfield-node
   namespace: springfield-system
   labels:
+    app: springfield-node
     helm.sh/chart: springfield-csi
     app.kubernetes.io/name: springfield-csi
     app.kubernetes.io/instance: springfield-csi
+    app.kubernetes.io/instance: springfield-csi
+    app.kubernetes.io/instance: springfield-csi-stratis
+    app.kubernetes.io/instance: springfield-csi-lvm
+    app.kubernetes.io/instance: springfield-csi-btrfs
+    app.kubernetes.io/instance: springfield-csi-md
+    app.kubernetes.io/name: springfield-csi-stratis
+    app.kubernetes.io/name: springfield-csi-lvm
+    app.kubernetes.io/name: springfield-csi-btrfs
+    app.kubernetes.io/name: springfield-csi-md
     app.kubernetes.io/version: "0.0.1"
     app.kubernetes.io/managed-by: Helm
 spec:
@@ -47,12 +57,28 @@ spec:
       app.kubernetes.io/component: node
       app.kubernetes.io/name: springfield-csi
       app.kubernetes.io/instance: springfield-csi
+      app.kubernetes.io/instance: springfield-csi-stratis
+      app.kubernetes.io/instance: springfield-csi-lvm
+      app.kubernetes.io/instance: springfield-csi-btrfs
+      app.kubernetes.io/instance: springfield-csi-md
+      app.kubernetes.io/name: springfield-csi-stratis
+      app.kubernetes.io/name: springfield-csi-lvm
+      app.kubernetes.io/name: springfield-csi-btrfs
+      app.kubernetes.io/name: springfield-csi-md
   template:
     metadata:
       labels:
         app.kubernetes.io/component: node
         app.kubernetes.io/name: springfield-csi
         app.kubernetes.io/instance: springfield-csi
+        app.kubernetes.io/instance: springfield-csi-stratis
+        app.kubernetes.io/instance: springfield-csi-lvm
+        app.kubernetes.io/instance: springfield-csi-btrfs
+        app.kubernetes.io/instance: springfield-csi-md
+        app.kubernetes.io/name: springfield-csi-stratis
+        app.kubernetes.io/name: springfield-csi-lvm
+        app.kubernetes.io/name: springfield-csi-btrfs
+        app.kubernetes.io/name: springfield-csi-md
       annotations: 
         prometheus.io/port: metrics
     spec:

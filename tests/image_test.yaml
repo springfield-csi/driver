@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: springfield-pvc-image-test
+  namespace: default
+  labels:
+    app.kubernetes.io/name: springfield-test-image-pod
+    app: example
+spec:
+  containers:
+  - name: springfield-test-webserver
+    image: ghcr.io/trgill/springfield-test-webserver:devel
+    ports:
+      - containerPort: 40
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-image
+  labels:
+    run: nginx-image
+spec:
+  ports:
+  - port: 40
+    protocol: TCP
+  selector:
+    run: nginx-image

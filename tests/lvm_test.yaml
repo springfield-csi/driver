@@ -1,36 +1,37 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: springfield-pvc-claim
+  name: springfield-lvm-pvc-claim
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
-  storageClassName: springfield-csi
+  storageClassName: springfield-csi-lvm
+
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: springfield-pvc-test
+  name: springfield-pvc-lvm-test
   namespace: default
   labels:
-    app.kubernetes.io/name: springfield-test-pod
+    app.kubernetes.io/name: springfield-test-lvm-pod
     app: example
 spec:
   containers:
-  - name: nginx
-    image: nginx
+  - name: springfield-test-webserver
+    image: ghcr.io/trgill/springfield-test-webserver:devel
     ports:
-      - containerPort: 80
+      - containerPort: 30
     volumeMounts:
     - mountPath: /springfield-volume
       name: springfield-volume
   volumes:
   - name: springfield-volume
     persistentVolumeClaim:
-      claimName: springfield-pvc-claim
+      claimName: springfield-lvm-pvc-claim
 ---
 apiVersion: v1
 kind: Service
@@ -40,7 +41,7 @@ metadata:
     run: my-nginx
 spec:
   ports:
-  - port: 80
+  - port: 30
     protocol: TCP
   selector:
     run: my-nginx

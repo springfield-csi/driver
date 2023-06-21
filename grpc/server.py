@@ -47,51 +47,21 @@ from identity import SpringfieldIdentityService
 from controller import SpringfieldControllerService
 
 
-
-def initilize_disks(storage_devs):
-
-    logger.info("initilize_disks")
-    # path = Path(STORAGE_DEVS_FILE)
-
-    # if not path.is_file():
-    #     logger.error('%s file not found in %s',
-    #                     STORAGE_DEVS_FILE, Path.cwd())
-        
-    #     # look in the grpc subdirectory
-    #     path = Path("grpc/" + STORAGE_DEVS_FILE)
-    #     if not path.is_file():
-    #         logger.error('%s file not found in %s',
-    #                       STORAGE_DEVS_FILE, Path.cwd())
-    #         exit()
-
-    # try:
-    #     with open(path) as json_file:
-    #         storage_devs = json.load(json_file)['use_for_csi_storage']
-    # except ValueError:
-    #     logger.error('Failed to parse {}', STORAGE_DEVS_FILE)
-    #     exit()
-
-    # pool_path = pool_object_path(CONTAINER_POOL)
-
-    # if pool_path is None:
-    #     (result, rc, msg) = pool_create(CONTAINER_POOL, storage_devs)
-    #     if (rc != 0): 
-    #         logger.error("Failed to initialize stratis pool: " + CONTAINER_POOL + " - " + msg)
-    #         exit()
-        
-
-
-def run_server(port, addr, nodeid):
-    logger.info("Starting grpc server:")
+def run_server(port, addr, nodeid, nodeonly):
+    logger.info("Starting grpc server.  NodeID : %s", nodeid)
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    controller = SpringfieldControllerService(nodeid=nodeid)
     csi_pb2_grpc.add_ControllerServicer_to_server(
-        SpringfieldControllerService(nodeid=nodeid), server
+        controller, server
     )
     csi_pb2_grpc.add_IdentityServicer_to_server(SpringfieldIdentityService(), server)
     csi_pb2_grpc.add_NodeServicer_to_server(
         SpringfieldNodeService(nodeid=nodeid), server
     )
+
+    if not nodeonly:
+        controller.setup_controller()
 
     server.add_insecure_port("unix://csi/csi.sock")
     # server.add_insecure_port("[::]:9080")
@@ -135,4 +105,4 @@ if __name__ == "__main__":
         logger.info("Running in node mode")
 
     logger.info("node id = %s", nodeid)
-    run_server(port, addr, nodeid)
+    run_server(port, addr, nodeid, args.nodeonly)

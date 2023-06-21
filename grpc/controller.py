@@ -104,6 +104,10 @@ def get_capability(capability):
 class SpringfieldControllerService(ControllerServicer):
     def __init__(self, nodeid):
         self.nodeid = nodeid
+
+    # Only the controller may run reset.  Currently there are 
+    # problems in the dbus server if it is run twice.
+    def setup_controller(self):
         reset()
 
     def CreateVolume(self, request, context):
@@ -177,7 +181,7 @@ class SpringfieldControllerService(ControllerServicer):
             if fstype == "":
                 fstype = "xfs"
 
-            if fstype not in ["xfs"]:
+            if fstype not in ["xfs", "btrfs"]:
                 context.abort(
                     grpc.StatusCode.INVALID_ARGUMENT,
                     "Unsupported filesystem type: {fstype}",
@@ -215,7 +219,17 @@ class SpringfieldControllerService(ControllerServicer):
         elif blivettype == "DEVICE_TYPE_BTRFS":
             typeparam = StorageType.DEVICE_TYPE_BTRFS
 
-        new_object_path = fs_create(request.name, disks, typeparam, "3GB")
+        # LVM and MD will fail if long names are used.  K8 typically passes names for PVCs
+        # similar to pvc-d5343444-7614-48bf-bd01-1d12d1313396.  For now, just take the last
+        # 20 chars and assume it is unique.  This will need to be fixed.
+        # TODO: Fix name length issues.
+        if len(request.name) > 20:
+            short_name = request.name[0:len(request.name) -20]
+        else:
+            short_name = request.name
+
+        logger.info("request.name = %s, short_name = %s", request.name, short_name)
+        new_object_path = fs_create(short_name, disks, typeparam, "3GB")
 
         logger.info("hostname = %s, nodename = %s", socket.gethostname(), node_name)
         block_path = get_property(new_object_path, DEVICE_INTERFACE, "Path")
@@ -229,7 +243,7 @@ class SpringfieldControllerService(ControllerServicer):
             volume_id=request.name,
             capacity_bytes=size,
             accessible_topology=[
-                csi_pb2.Topology(segments={"hostname": socket.gethostname()})
+                csi_pb2.Topology(segments={"hostname": node_name})
             ],
         )
 
@@ -336,6 +350,7 @@ class SpringfieldControllerService(ControllerServicer):
         if access_type == "mount":
             fstype = volume_capability.mount.fs_type
             if fstype not in ["xfs", "btrfs", "ext4", ""]:
+                logger.info("ValidateVolumeCapabilities : invalid fstype %s", fstype)
                 context.abort(
                     grpc.StatusCode.INVALID_ARGUMENT,
                     "Unsupported filesystem type: {fstype}",

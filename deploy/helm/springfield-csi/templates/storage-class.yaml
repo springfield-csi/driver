@@ -1,7 +1,7 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: springfield-csi-btrfs
+  name: springfield-csi
   annotations:
   labels:
     helm.sh/chart: springfield-0.1
@@ -11,8 +11,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 provisioner: springfield.csi.redhat.com
 parameters:
-  fstype: btrfs
+  fstype: xfs
   disks: /dev/sdc,/dev/sdd
-  blivettype: DEVICE_TYPE_BTRFS
+  blivettype: DEVICE_TYPE_STRATIS
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
