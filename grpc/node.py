@@ -62,9 +62,9 @@ class SpringfieldNodeService(NodeServicer):
         if not exists:
             os.makedirs(staging_target_path)
 
-        logger.info("mount :" + dev_path + " on: " + staging_target_path + " with : -txfs")
+        logger.info("mount :" + dev_path + " on: " + staging_target_path )
         try:
-            mount(dev_path, staging_target_path, "-txfs")
+            mount(dev_path, staging_target_path)
         except OSError as e:
           logger.warning(
                 "Warining mount failed: %s : %s" % (staging_target_path, e.strerror)
