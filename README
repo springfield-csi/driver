@@ -1,111 +1,70 @@
 
 # Overview
 
-This is a prototype of a CSI driver over Stratis 
+** Minimail testing completed.  NOT ready for use with real data.
 
-Please use with caution - only minimal testing has been completed.
+Prototype CSI driver backed by Blivet.
 
-Not ready for production use.
+The project is a proof of concept to build a CSI driver that uses
+a mapped dbus domain socket to create storage on the host and provide
+the storage for use to containers on demand.
 
-# Setup
+Currently we are looking for interest in the project to justify
+investing more time.
 
-Currently tested on Fedora release 37 VM with empty block devices
-for the Stratis pool.
+Blivet has a prototype dbus API that provides high level APIs to Linux
+storage technologies.  LVM, BTRFS, MD, and Stratis are included in this
+prototype only CSI driver code.
 
-From the top level directory:
+Note: There are known issues using BTRFS.  See:
+https://github.com/springfield-csi/driver/issues/3
 
-1. Run the setup.sh script.  The script will copy kind, kubect and helm
-   to the bin directory.  It will also install kubernetes-client, stratisd,
-   stratis-cli and podman.
+# How to install
 
-2. Run the build_cluster.sh script to setup kind running a kubernetes
-   cluster.
+## Setup Kind Cluster
+./build_cluster.sh
 
-   2a. run the gp (see aliases below) alias to see the currently running pods
+## Edit each of the storage class files
 
-3. Update the deploy.sh script to replace /dev/XXX with actual block 
-   devices that may be used by stratis for a pool.  Be careful maintain
-   the format of the list.  Adding spaces between the devices will cause
-   problems with how helm passes the parameter to the container startup.
+The following files each have a field:
 
-   If the block device was previously used, it may be prepared for use
-   with Stratis via "wipefs -a /dev/XXX".  Note: this will destroy all
-   data on the block device.
+    disks: /dev/XXXX,/dev/XXXX
 
-   If any of the pods are in a CrashLoopBackOff state, there was a problem
-   with startup.  Use the "vl <podname>" command to view the logs.
+Updated each class to have valid block devices.  The any content of a
+block device with be lost.  Please use caution!  The CSI driver will
+wipe /dev/XXX clean to prepate it for new use as a resource for the
+PVs allocated by the CSI driver.
 
-4. Invoke the deploy.sh script to start the CSI driver in the kind cluster.
-   The script will wait until the node and controller pods are in a ready
-   state.  
-   
-   If a PVC allocation request is issued when the CSI driver is
-   partially deployed, the cluster and PVC may be left in a bad state.
 
-   4a. Run the gp alias.  The node and controller pods for the CSI driver
-       will be running.  Note that the CSI driver pods run in the 
-       springfield-system namespace.
+    deploy/helm/springfield-csi/templates/storage-class-lvm.yaml
+    deploy/helm/springfield-csi/templates/storage-class-md.yaml
+    deploy/helm/springfield-csi/templates/storage-class-stratis.yaml
+    deploy/helm/springfield-csi/templates/storage-class-btrfs.yaml
 
-5. cd tests
-   run the test.sh script - this will invoke the CSI driver to create a 
-   stratis pool named springfield-csi-pool.
+Note: Every class must contain valid block devices.  When the driver
+starts, it wipes clean any block devices used by the classes.  If
+any fail to initialize the driver will exit.
 
-6. To cleanup:
-   from the tests directory
+## Start Blivet dbus server
 
-   cleanup_tests.sh
+Clone the 3.8-devel branch from https://github.com/storaged-project/blivet.git to
+a local directory.  Note: the 3.8-devel branch has fixes necessary for the
+blivet dbus server to work properly.  From the top level directory run:
 
-   from the top level directory
+export PYTHONPATH=${workspaceFolder}${pathSeparator} dbus/blivetd
 
-   cleanup.sh
+Note: There are some known problems with the blivetd.  If the CSI driver is
+restarted.  The blivetd process must be restarted too.
 
-# Useful commands to check state:
+## Deploy the driver from ghcr.io/trgill/springfield-csi-driver:devel
+./deploy.sh
 
-alias gp='kubectl get pods --all-namespaces'
-alias dp='kubectl describe pods --namespace springfield-system'
-alias vl='kubectl logs --namespace springfield-system --tail=1000'
-alias pvc='kubectl describe pvc'
-alias pv='kubectl describe pv'
+cd tests
+## Run a test to create a PVC and attach to a test container.
 
-# To open a bash shell inside the CSI node or controller:
+./lvm_test.sh
 
-kubectl exec --stdin --namespace springfield-system --tty springfield-XXX -- /bin/bash
+## Open a shell in the test pod to look at the storage
 
-# To open a sh shell inside the test pod:
-# Note: the base image for the test container doesn't include bash
+kubectl exec --stdin --namespace default springfield-pvc-lvm-test --  /bin/bash
 
-kubectl exec --stdin --namespace default --tty springfield-pvc-test -- /bin/sh
-
-# Inside the test pod, the PVC will be mounted on /springfield-volume
-
-# df
-Filesystem      1K-blocks    Used  Available Use% Mounted on
-overlay          30405632 8513628   21432084  29% /
-tmpfs               65536       0      65536   0% /dev
-/stratis/dm-5  1073217536 7517520 1065700016   1% /springfield-volume
-/dev/vda3        30405632 8513628   21432084  29% /etc/hosts
-shm                 65536       0      65536   0% /dev/shm
-tmpfs             4011800      12    4011788   1% /run/secrets/kubernetes.io/serviceaccount
-tmpfs             2005900       0    2005900   0% /proc/acpi
-tmpfs             2005900       0    2005900   0% /proc/scsi
-tmpfs             2005900       0    2005900   0% /sys/firmware 
-
-# from the host that is running the cluster the stratis fs will look like:
-
-# stratis fs list
-Pool                   Filesystem                                 Total / Used / Free             Created             Device                                                                       UUID                                
-springfield-csi-pool   pvc-9198726f-3650-4b28-8e55-e4fffce38e23   1 TiB / 546 MiB / 1023.47 GiB   Apr 13 2023 09:11   /dev/stratis/springfield-csi-pool/pvc-9198726f-3650-4b28-8e55-e4fffce38e23   2a190e49-b2b6-47de-bdb3-5386e5ad6971
-
-# The stratis pool may be mounted in the host running the cluster via:
-# Note: the name will be different
-
-mount /dev/stratis/springfield-csi-pool/pvc-9198726f-3650-4b28-8e55-e4fffce38e23 /mnt
-
-Files created in the pod will be visible in both the test pod and the host since they
-are shared.
-
-# Forward the HTTP port from the pod to the host
-
-kubectl port-forward springfield-pvc-test 80:80
-
-# Open browser on http://localhost:80

@@ -24,7 +24,7 @@ spec:
   - name: springfield-test-webserver
     image: ghcr.io/trgill/springfield-test-webserver:devel
     ports:
-      - containerPort: 30
+      - containerPort: 83
     volumeMounts:
     - mountPath: /springfield-volume
       name: springfield-volume
@@ -41,7 +41,7 @@ metadata:
     run: my-nginx
 spec:
   ports:
-  - port: 30
+  - port: 83
     protocol: TCP
   selector:
     run: my-nginx

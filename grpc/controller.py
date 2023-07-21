@@ -112,6 +112,7 @@ class SpringfieldControllerService(ControllerServicer):
 
     def CreateVolume(self, request, context):
         logger.info("CreateVolume()")
+        fs_type = ""
 
         # Validate the parameters for the request
         if request.name == None:
@@ -233,8 +234,10 @@ class SpringfieldControllerService(ControllerServicer):
 
         logger.info("hostname = %s, nodename = %s", socket.gethostname(), node_name)
         block_path = get_property(new_object_path, DEVICE_INTERFACE, "Path")
+
         csi_metadata = {
             "csi_name": request.name,
+            "fs_type" : fstype,
             "block_path": block_path,
         }
 

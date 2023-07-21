@@ -178,9 +178,9 @@ def btrfs_create(disk_list, fs_name, size):
         "size": size,
         "disks": disk_list,
         "name": fs_name,
-        "raid_level": "raid1",
-        "container_raid_level": "raid1",
         "fstype": "btrfs",
+        "raid_level": "raid0",
+        "container_raid_level": "raid0",
     }
 
     return blivet_interface.Factory(kwargs, timeout=TIMEOUT)
@@ -251,58 +251,59 @@ def fs_create(name, disks_list, storage_type, size):
     
     disk_object_paths = initialize_disks(disks_list)
     newdev_object_path = None
+    SIZE = "3GiB"
 
     if storage_type == StorageType.DEVICE_TYPE_LVM:
-        newdev_object_path = lvm_create(disk_object_paths, name, size)
+        newdev_object_path = lvm_create(disk_object_paths, name, SIZE)
     elif storage_type == StorageType.DEVICE_TYPE_BTRFS:
-        newdev_object_path = btrfs_create(disk_object_paths, name, size)
+        newdev_object_path = btrfs_create(disk_object_paths, name, SIZE)
     elif storage_type == StorageType.DEVICE_TYPE_MD:
-        newdev_object_path = md_create(disk_object_paths, name, size)
+        newdev_object_path = md_create(disk_object_paths, name, SIZE)
     elif storage_type == StorageType.DEVICE_TYPE_STRATIS:
-        newdev_object_path = stratis_create(disk_object_paths, name, size)
+        newdev_object_path = stratis_create(disk_object_paths, name, SIZE)
 
     blivet_interface.Commit(timeout=TIMEOUT)
 
     return newdev_object_path
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-#     blivet_interface.Reset(timeout=TIMEOUT)
+    blivet_interface.Reset(timeout=TIMEOUT)
 
-#     props = properties_interface.GetAll(BLIVET_INTERFACE, timeout=TIMEOUT)
-#     print_dict(BLIVET_INTERFACE, props)
+    props = properties_interface.GetAll(BLIVET_INTERFACE, timeout=TIMEOUT)
+    print_dict(BLIVET_INTERFACE, props)
 
-#     blockdevs_list = list(["/dev/sda", "/dev/sdb"])
+    blockdevs_list = list(["/dev/XXX", "/dev/XXX"])
 
-#     SIZE = "3 GiB"
+    SIZE = "3GiB"
 
-#     new_object_path = fs_create("test_fs_lvm", blockdevs_list, StorageType.DEVICE_TYPE_LVM, SIZE)
-#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-#     if new_object_path:
-#         print_properties(new_object_path, DEVICE_INTERFACE)
-#         remove_device(new_object_path, blockdevs_list, mount_point)
+    new_object_path = fs_create("test_fs_lvm", blockdevs_list, StorageType.DEVICE_TYPE_LVM, SIZE)
+    mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+    if new_object_path:
+        print_properties(new_object_path, DEVICE_INTERFACE)
+        remove_device(new_object_path, blockdevs_list, mount_point)
 
-#     blockdevs_list = list(["/dev/sdc", "/dev/sdd"])
+    blockdevs_list = list(["/dev/XXX", "/dev/XXX"])
 
-#     new_object_path = fs_create("test_fs_btrfs", blockdevs_list, StorageType.DEVICE_TYPE_BTRFS, SIZE)
-#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-#     if new_object_path:
-#         print_properties(new_object_path, DEVICE_INTERFACE)
-#         remove_device(new_object_path, blockdevs_list, mount_point)
+    new_object_path = fs_create("test_fs_btrfs", blockdevs_list, StorageType.DEVICE_TYPE_BTRFS, SIZE)
+    mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+    if new_object_path:
+        print_properties(new_object_path, DEVICE_INTERFACE)
+        remove_device(new_object_path, blockdevs_list, mount_point)
     
-#     blockdevs_list = list(["/dev/sde", "/dev/sdf"])
+    blockdevs_list = list(["/dev/XXX", "/dev/XXX"])
 
-#     new_object_path = fs_create("test_fs_md", blockdevs_list, StorageType.DEVICE_TYPE_MD, SIZE)
-#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-#     if new_object_path:
-#         print_properties(new_object_path, DEVICE_INTERFACE)
-#         remove_device(new_object_path, blockdevs_list, mount_point)
+    new_object_path = fs_create("test_fs_md", blockdevs_list, StorageType.DEVICE_TYPE_MD, SIZE)
+    mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+    if new_object_path:
+        print_properties(new_object_path, DEVICE_INTERFACE)
+        remove_device(new_object_path, blockdevs_list, mount_point)
     
-#     blockdevs_list = list(["/dev/sdg", "/dev/sdh"])
+    blockdevs_list = list(["/dev/XXX", "/dev/XXX"])
 
-#     new_object_path = fs_create("test_fs_stratis", blockdevs_list, StorageType.DEVICE_TYPE_STRATIS, SIZE)
-#     mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
-#     if new_object_path:
-#         print_properties(new_object_path, DEVICE_INTERFACE)
-#         remove_device(new_object_path, blockdevs_list, mount_point)
+    new_object_path = fs_create("test_fs_stratis", blockdevs_list, StorageType.DEVICE_TYPE_STRATIS, SIZE)
+    mount_point = get_property(new_object_path, DEVICE_INTERFACE, "Mountpoint")
+    if new_object_path:
+        print_properties(new_object_path, DEVICE_INTERFACE)
+        remove_device(new_object_path, blockdevs_list, mount_point)
