@@ -115,10 +115,13 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
-            - mountPath: /var/run/dbus
-              name: dbus-socket
-            - name: hostdev-dir
-              mountPath: /hostdev
+            - name: host-dev
+              mountPath: /host/dev
+            - name: host-proc
+              mountPath: /host/proc
+              mountPropagation: HostToContainer
+            - name: host-sys
+              mountPath: /host/sys
             - name: pod-volumes-dir
               mountPath: /var/lib/kubelet/pods
               mountPropagation: "Bidirectional"
@@ -170,13 +173,17 @@ spec:
           hostPath:
             path: /var/lib/kubelet/plugins/springfield.csi.redhat.com/
             type: DirectoryOrCreate
-        - name: dbus-socket
+        - name: host-dev
           hostPath:
-            path: /host_dbus
+            path: /dev
             type: Directory
-        - name: hostdev-dir
+        - name: host-proc
           hostPath:
-            path: /hostdev
+            path: /proc
+            type: Directory
+        - name: host-sys
+          hostPath:
+            path: /sys
             type: Directory
         - name: pod-volumes-dir
           hostPath:

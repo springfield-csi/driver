@@ -44,31 +44,41 @@ FROM alpine:3.19
 ARG BUILD_DATE
 
 LABEL maintainers="Todd Gill <tgill@redhat.com>" \
-    version="0.2.0" \
+    version="0.3.0" \
     release="1" \
     description="Springfield CSI Driver" \
-    summary="Springfield CSI driver for local storage using Blivet" \
+    summary="Springfield CSI driver for local storage" \
     org.label-schema.schema-version="1.0" \
     org.label-schema.name="springfield-csi" \
     org.label-schema.description="Springfield CSI Driver" \
     org.label-schema.url="https://github.com/springfield-csi/driver" \
     org.label-schema.build-date=${BUILD_DATE} \
     org.opencontainers.image.source="https://github.com/springfield-csi/driver" \
-    org.opencontainers.image.description="Springfield prototype CSI driver"
+    org.opencontainers.image.description="Springfield CSI driver for local storage"
 
-# Install runtime dependencies
+# Install storage management tools
 RUN apk add --no-cache \
     ca-certificates \
-    e2fsprogs \
-    xfsprogs \
-    btrfs-progs \
     util-linux \
+    e2fsprogs \
+    e2fsprogs-extra \
+    xfsprogs \
+    xfsprogs-extra \
+    btrfs-progs \
+    lvm2 \
+    lvm2-extra \
+    mdadm \
+    device-mapper \
+    device-mapper-libs \
+    cryptsetup \
     blkid \
-    mount \
-    umount
+    findmnt
+
+# Note: Stratis is not available in Alpine repositories
+# For Stratis support, consider using Fedora/RHEL base image
 
 # Create necessary directories
-RUN mkdir -p /csi
+RUN mkdir -p /csi /var/lib/springfield-csi
 
 # Copy the binary from builder
 COPY --from=builder /workspace/csi-driver /usr/local/bin/
