@@ -1,7 +1,30 @@
+# IDE
 .vscode
+.idea/
+
+# Python
 grpc/__pycache__
 grpc/storage_devs.json
+*.pyc
+__pycache__/
+
+# Go
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+csi-driver
+*.test
+*.out
+go.work
+vendor/
+
+# Build artifacts
 sidecars
-bin
+
+# Editor
 *~
 *.swp
+*.swo
