@@ -49,11 +49,11 @@ fi
 
 docker logout ghcr.io
 
-export VERSION="0.1.0"
+export VERSION="0.3.0"
 
 # TODO: Add logic to only build the container when necessary.
 export TZ="EST"
-docker build --no-cache -f deploy/docker/Dockerfile --build-arg  BUILD_DATE="$(date)" -t springfield-csi-driver:devel .
+docker build --no-cache -f Dockerfile --build-arg  BUILD_DATE="$(date)" -t springfield-csi-driver:devel .
 
 # docker image ls localhost/springfield-csi-driver
 echo $GITHUB_PAT | docker login ghcr.io -u trgill --password-stdin

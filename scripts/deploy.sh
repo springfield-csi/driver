@@ -14,16 +14,7 @@ export HELM=bin/helm
 export BINDIR=./bin
 export CLUSTER_NAME=springfield-cluster
 
-export VERSION="0.1.2"
-
-
-#if pgrep -x "dbus/blivetd" > /dev/null
-#then
-#   echo "blivetd running"
-#else
-#   echo "blivetd is required for proper operation of springfield CSI driver"
-#   exit 1
-#fi
+export VERSION="0.3.0"
 
 $KUBECTL apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.7.0/cert-manager.crds.yaml
 $KUBECTL create namespace springfield-system
