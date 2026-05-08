@@ -20,5 +20,5 @@ package driver
 
 const (
 	DriverName    = "springfield.csi.redhat.com"
-	DriverVersion = "0.2"
+	DriverVersion = "0.3"
 )

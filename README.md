@@ -2,36 +2,39 @@
 
 **Minimal testing completed. NOT ready for use with real data.**
 
-A prototype CSI driver backed by Blivet, rewritten in Go for improved performance and maintainability.
+A prototype CSI driver for local storage, written in Go for performance and reliability.
 
 ## Overview
 
-This project is a proof of concept to build a CSI driver that uses a mapped DBus domain socket to create storage on the host and provide the storage for use to containers on demand.
+This project is a proof of concept CSI driver that manages local storage using direct command execution. It uses nsenter to run LVM, MD RAID, BTRFS, and Stratis commands on the host system.
 
-Blivet has a prototype DBus API that provides high-level APIs to Linux storage technologies. LVM, BTRFS, MD, and Stratis are included in this prototype CSI driver code.
+The driver supports multiple storage backends without requiring external daemons or DBus services.
 
 **Note:** There are known issues using BTRFS. See: https://github.com/springfield-csi/driver/issues/3
 
 ## Version
 
-**v0.2** - Rewritten in Go from Python
+**v0.3** - Direct execution architecture (no Blivet dependency)  
+**v0.2** - Initial Go rewrite from Python  
+**v0.1** - Original Python implementation with Blivet
 
 ## Features
 
 - **CSI Specification Compliant**: Implements Identity, Controller, and Node services
 - **Multiple Storage Backends**: Supports LVM, BTRFS, MD RAID, and Stratis
-- **Blivet Integration**: Uses Blivet's DBus API for storage management
+- **Direct Execution**: Uses nsenter to run storage commands on the host
+- **No External Daemons**: Self-contained, no Blivet or DBus required
 - **Topology Awareness**: Supports node topology constraints
 - **Volume Lifecycle**: Create, delete, publish, unpublish, stage, unstage
 - **Volume Stats**: Reports filesystem usage statistics
-- **Online Expansion**: Supports online volume expansion capability (partial)
+- **Online Expansion**: Supports online volume expansion (LVM only)
 
 ## Prerequisites
 
 - Go 1.22 or later (for building)
 - Kubernetes cluster (tested with kind)
-- Blivet DBus server running on the host
-- Block devices available for storage pool
+- Block devices available for storage
+- Storage tools on host: lvm2, mdadm, btrfs-progs, xfsprogs
 
 ## Building
 
@@ -85,24 +88,9 @@ Storage class files to configure:
 - `deploy/helm/springfield-csi/templates/storage-class-stratis.yaml`
 - `deploy/helm/springfield-csi/templates/storage-class-btrfs.yaml`
 
-**Note:** Every storage class must contain valid block devices. When the driver starts, it initializes all configured block devices. If any fail to initialize, the driver will exit.
+**Note:** Every storage class must contain valid block devices. When the driver starts, it initializes volume groups/pools for the configured storage types.
 
-### 3. Start Blivet DBus Server
-
-Clone the `3.8-devel` branch from https://github.com/storaged-project/blivet.git:
-
-```bash
-git clone -b 3.8-devel https://github.com/storaged-project/blivet.git
-cd blivet
-export PYTHONPATH=$(pwd)
-dbus/blivetd
-```
-
-**Note:** The `3.8-devel` branch has fixes necessary for the blivet DBus server to work properly.
-
-**Known Issue:** If the CSI driver is restarted, the blivetd process must also be restarted.
-
-### 4. Deploy the Driver
+### 3. Deploy the Driver
 
 ```bash
 ./deploy.sh
@@ -110,14 +98,16 @@ dbus/blivetd
 
 The driver will be deployed from `ghcr.io/springfield-csi/driver:devel` (or your configured registry).
 
-### 5. Run Tests
+**Note:** No Blivet DBus server is required! The driver executes commands directly on the host.
+
+### 4. Run Tests
 
 ```bash
 cd tests
 ./lvm_test.sh
 ```
 
-### 6. Access Test Pod
+### 5. Access Test Pod
 
 ```bash
 kubectl exec --stdin --namespace default springfield-pvc-lvm-test -- /bin/bash
@@ -133,12 +123,23 @@ kubectl exec --stdin --namespace default springfield-pvc-lvm-test -- /bin/bash
 │   ├── identity/          # CSI Identity service
 │   ├── controller/        # CSI Controller service
 │   ├── node/              # CSI Node service
-│   └── blivet/            # Blivet DBus client
+│   └── storage/           # Storage managers (LVM, MD, BTRFS, Stratis)
 ├── deploy/
 │   ├── docker/            # Old Python Dockerfile (deprecated)
 │   └── helm/              # Helm charts for deployment
+├── docs/                  # Architecture documentation
 └── tests/                 # Test scripts and manifests
 ```
+
+## Improvements in v0.3 (Direct Execution)
+
+- **No External Daemon**: Removed Blivet DBus dependency
+- **Simpler Deployment**: No need to manage external services
+- **More Reliable**: No DBus state synchronization issues
+- **Better Performance**: Direct command execution, no marshalling
+- **Easier Debugging**: See actual commands in logs
+- **Stateless**: Commands query real state, no cached data
+- **Industry Standard**: Same approach as OpenEBS and TopoLVM
 
 ## Improvements in v0.2 (Go Rewrite)
 
@@ -153,11 +154,11 @@ kubectl exec --stdin --namespace default springfield-pvc-lvm-test -- /bin/bash
 ## Known Limitations
 
 - Snapshots not implemented
-- Volume expansion partially implemented
+- Volume expansion implemented for LVM only
 - Clone volume not implemented
 - No persistent volume state (in-memory only)
 - BTRFS support has known issues
-- Blivet DBus server must be restarted with the driver
+- Stratis support requires stratis-cli on host
 
 ## Development
 
@@ -166,7 +167,7 @@ kubectl exec --stdin --namespace default springfield-pvc-lvm-test -- /bin/bash
 - `pkg/identity/`: Implements GetPluginInfo, GetPluginCapabilities, Probe
 - `pkg/controller/`: Implements volume creation, deletion, and publishing
 - `pkg/node/`: Implements volume staging, publishing, and statistics
-- `pkg/blivet/`: DBus client for Blivet storage operations
+- `pkg/storage/`: Direct execution managers for LVM, MD, BTRFS, Stratis
 
 ### Adding New Features
 
