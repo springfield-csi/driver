@@ -4,7 +4,6 @@ go 1.22
 
 require (
 	github.com/container-storage-interface/spec v1.9.0
-	github.com/godbus/dbus/v5 v5.1.0
 	github.com/kubernetes-csi/csi-lib-utils v0.18.0
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0

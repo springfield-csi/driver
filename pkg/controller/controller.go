@@ -25,8 +25,7 @@ import (
 	"sync"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/godbus/dbus/v5"
-	"github.com/springfield-csi/driver/pkg/blivet"
+	"github.com/springfield-csi/driver/pkg/storage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -36,42 +35,69 @@ const (
 	nodeNameTopologyKey = "hostname"
 	defaultVolumeSize   = "3GiB"
 	maxNameLength       = 20
+
+	// Volume group names for different storage types
+	lvmVolumeGroup = "csi-vg-lvm"
+	stratisPoolName = "csi-pool-stratis"
+)
+
+// StorageType represents the type of storage backend
+type StorageType string
+
+const (
+	StorageTypeLVM     StorageType = "lvm"
+	StorageTypeMD      StorageType = "mdraid"
+	StorageTypeBTRFS   StorageType = "btrfs"
+	StorageTypeStratis StorageType = "stratis"
 )
 
 // VolumeInfo stores information about a created volume
 type VolumeInfo struct {
 	Name          string
 	CSIVolumeID   string
-	ObjectPath    dbus.ObjectPath
 	BlockPath     string
 	CapacityBytes int64
 	Disks         []string
-	StorageType   blivet.StorageType
+	StorageType   StorageType
 	FSType        string
+	// Storage-specific metadata
+	VolumeGroup string // for LVM
+	PoolName    string // for Stratis
 }
 
 // Service implements the CSI Controller service
 type Service struct {
 	csi.UnimplementedControllerServer
-	nodeID      string
-	blivetClient *blivet.Client
-	volumes     map[string]*VolumeInfo
-	volumesMu   sync.RWMutex
+	nodeID       string
+	lvmMgr       *storage.LVMManager
+	mdMgr        *storage.MDManager
+	btrfsMgr     *storage.BTRFSManager
+	stratisMgr   *storage.StratisManager
+	volumes      map[string]*VolumeInfo
+	volumesMu    sync.RWMutex
+	vgInitialized map[string]bool // Track initialized volume groups
+	vgMu         sync.Mutex
 }
 
 // New creates a new Controller service
-func New(nodeID string, blivetClient *blivet.Client) *Service {
+func New(nodeID string) *Service {
+	executor := storage.NewExecutor()
+
 	return &Service{
-		nodeID:      nodeID,
-		blivetClient: blivetClient,
-		volumes:     make(map[string]*VolumeInfo),
+		nodeID:        nodeID,
+		lvmMgr:        storage.NewLVMManager(executor),
+		mdMgr:         storage.NewMDManager(executor),
+		btrfsMgr:      storage.NewBTRFSManager(executor),
+		stratisMgr:    storage.NewStratisManager(executor),
+		volumes:       make(map[string]*VolumeInfo),
+		vgInitialized: make(map[string]bool),
 	}
 }
 
-// Setup initializes the controller by resetting Blivet state
+// Setup initializes the controller (no-op now, kept for compatibility)
 func (s *Service) Setup() error {
-	klog.Info("Setting up controller")
-	return s.blivetClient.Reset()
+	klog.Info("Controller setup complete (no initialization required)")
+	return nil
 }
 
 // getVolume retrieves a volume by ID
@@ -96,29 +122,70 @@ func (s *Service) removeVolume(volumeID string) {
 }
 
 // shortenName truncates long volume names to avoid issues with LVM and MD
-// K8s PVC names like "pvc-d5343444-7614-48bf-bd01-1d12d1313396" can be too long
 func shortenName(name string) string {
 	if len(name) <= maxNameLength {
 		return name
 	}
-	// Take the last 20 characters which should include the unique suffix
 	return name[len(name)-maxNameLength:]
 }
 
 // parseStorageType converts a string to a StorageType
-func parseStorageType(typeStr string) blivet.StorageType {
-	switch typeStr {
-	case "DEVICE_TYPE_LVM":
-		return blivet.DeviceTypeLVM
-	case "DEVICE_TYPE_MD":
-		return blivet.DeviceTypeMD
-	case "DEVICE_TYPE_STRATIS":
-		return blivet.DeviceTypeStratis
-	case "DEVICE_TYPE_BTRFS":
-		return blivet.DeviceTypeBTRFS
+func parseStorageType(typeStr string) StorageType {
+	switch strings.ToLower(typeStr) {
+	case "lvm", "device_type_lvm":
+		return StorageTypeLVM
+	case "mdraid", "md", "device_type_md":
+		return StorageTypeMD
+	case "stratis", "device_type_stratis":
+		return StorageTypeStratis
+	case "btrfs", "device_type_btrfs":
+		return StorageTypeBTRFS
 	default:
-		return blivet.DeviceTypeLVM // Default to LVM
+		return StorageTypeLVM // Default to LVM
 	}
+}
+
+// ensureVolumeGroup ensures an LVM volume group exists for the given devices
+func (s *Service) ensureVolumeGroup(vgName string, devices []string) error {
+	s.vgMu.Lock()
+	defer s.vgMu.Unlock()
+
+	if s.vgInitialized[vgName] {
+		return nil
+	}
+
+	// Check if VG already exists
+	exists, err := s.lvmMgr.VolumeGroupExists(vgName)
+	if err != nil {
+		return fmt.Errorf("failed to check VG existence: %w", err)
+	}
+
+	if !exists {
+		klog.Infof("Creating volume group %s with devices %v", vgName, devices)
+		if err := s.lvmMgr.CreateVolumeGroup(vgName, devices); err != nil {
+			return fmt.Errorf("failed to create VG: %w", err)
+		}
+	}
+
+	s.vgInitialized[vgName] = true
+	return nil
+}
+
+// ensureStratisPool ensures a Stratis pool exists
+func (s *Service) ensureStratisPool(poolName string, devices []string) error {
+	s.vgMu.Lock()
+	defer s.vgMu.Unlock()
+
+	if s.vgInitialized[poolName] {
+		return nil
+	}
+
+	if err := s.stratisMgr.CreatePool(poolName, devices); err != nil {
+		return fmt.Errorf("failed to ensure Stratis pool: %w", err)
+	}
+
+	s.vgInitialized[poolName] = true
+	return nil
 }
 
 // CreateVolume creates a new volume
@@ -169,16 +236,18 @@ func (s *Service) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest
 
 	// Parse parameters
 	var disks []string
-	var blivetType blivet.StorageType = blivet.DeviceTypeLVM
+	storageType := StorageTypeLVM
 	fsType := "xfs"
 
 	for k, v := range req.GetParameters() {
 		klog.V(4).Infof("Parameter %s: %s", k, v)
 		switch k {
-		case "disks":
+		case "disks", "devices":
 			disks = strings.Split(v, ",")
-		case "blivettype":
-			blivetType = parseStorageType(v)
+		case "storagetype", "blivettype", "type":
+			storageType = parseStorageType(v)
+		case "fstype":
+			fsType = v
 		}
 	}
 
@@ -205,7 +274,7 @@ func (s *Service) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest
 		}
 	}
 
-	// Get node name from topology (if available)
+	// Get node name from topology
 	nodeName := s.nodeID
 	if req.GetAccessibilityRequirements() != nil &&
 		len(req.GetAccessibilityRequirements().GetPreferred()) > 0 {
@@ -218,28 +287,84 @@ func (s *Service) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest
 
 	// Shorten name if necessary
 	shortName := shortenName(req.GetName())
-	klog.V(4).Infof("Creating volume: original=%s, short=%s", req.GetName(), shortName)
+	klog.V(4).Infof("Creating volume: original=%s, short=%s, type=%s", req.GetName(), shortName, storageType)
 
-	// Create the volume using Blivet
-	objPath, blockPath, err := s.blivetClient.CreateVolume(shortName, disks, blivetType, defaultVolumeSize)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to create volume: %v", err)
-	}
-
-	// Store volume info
+	// Create the volume based on storage type
+	var devicePath string
+	var err error
 	volInfo := &VolumeInfo{
 		Name:          req.GetName(),
 		CSIVolumeID:   req.GetName(),
-		ObjectPath:    objPath,
-		BlockPath:     blockPath,
 		CapacityBytes: size,
 		Disks:         disks,
-		StorageType:   blivetType,
+		StorageType:   storageType,
 		FSType:        fsType,
 	}
+
+	switch storageType {
+	case StorageTypeLVM:
+		// Ensure volume group exists
+		if err := s.ensureVolumeGroup(lvmVolumeGroup, disks); err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to ensure VG: %v", err)
+		}
+
+		// Create logical volume
+		devicePath, err = s.lvmMgr.CreateLogicalVolume(lvmVolumeGroup, shortName, defaultVolumeSize)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create LV: %v", err)
+		}
+
+		// Create filesystem
+		if err := s.lvmMgr.CreateFilesystem(devicePath, fsType); err != nil {
+			// Cleanup on failure
+			s.lvmMgr.DeleteLogicalVolume(lvmVolumeGroup, shortName)
+			return nil, status.Errorf(codes.Internal, "Failed to create filesystem: %v", err)
+		}
+
+		volInfo.VolumeGroup = lvmVolumeGroup
+
+	case StorageTypeMD:
+		// Create MD RAID array
+		devicePath, err = s.mdMgr.CreateArray(shortName, disks, "raid1")
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create MD array: %v", err)
+		}
+
+		// Create filesystem
+		if err := s.mdMgr.CreateFilesystem(devicePath, fsType); err != nil {
+			s.mdMgr.DeleteArray(shortName)
+			return nil, status.Errorf(codes.Internal, "Failed to create filesystem: %v", err)
+		}
+
+	case StorageTypeBTRFS:
+		// Create BTRFS filesystem
+		devicePath, err = s.btrfsMgr.CreateFilesystem(shortName, disks, "raid0", "raid0")
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create BTRFS: %v", err)
+		}
+
+	case StorageTypeStratis:
+		// Ensure Stratis pool exists
+		if err := s.ensureStratisPool(stratisPoolName, disks); err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to ensure Stratis pool: %v", err)
+		}
+
+		// Create Stratis filesystem
+		devicePath, err = s.stratisMgr.CreateFilesystem(stratisPoolName, shortName)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create Stratis FS: %v", err)
+		}
+
+		volInfo.PoolName = stratisPoolName
+
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "Unsupported storage type: %s", storageType)
+	}
+
+	volInfo.BlockPath = devicePath
 	s.addVolume(volInfo)
 
-	klog.Infof("Created volume %s at %s", req.GetName(), blockPath)
+	klog.Infof("Created volume %s at %s (type: %s)", req.GetName(), devicePath, storageType)
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
@@ -248,7 +373,7 @@ func (s *Service) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest
 			VolumeContext: map[string]string{
 				"csi_name":   req.GetName(),
 				"fs_type":    fsType,
-				"block_path": blockPath,
+				"block_path": devicePath,
 			},
 			AccessibleTopology: []*csi.Topology{
 				{Segments: map[string]string{nodeNameTopologyKey: nodeName}},
@@ -267,13 +392,35 @@ func (s *Service) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest
 
 	vol := s.getVolume(req.GetVolumeId())
 	if vol == nil {
-		// Volume doesn't exist, which is fine for idempotency
 		klog.V(4).Infof("Volume %s not found, already deleted", req.GetVolumeId())
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	// Delete the volume
-	if err := s.blivetClient.DeleteVolume(vol.ObjectPath, vol.Disks); err != nil {
+	shortName := shortenName(vol.Name)
+
+	// Delete based on storage type
+	var err error
+	switch vol.StorageType {
+	case StorageTypeLVM:
+		err = s.lvmMgr.DeleteLogicalVolume(vol.VolumeGroup, shortName)
+
+	case StorageTypeMD:
+		err = s.mdMgr.DeleteArray(shortName)
+
+	case StorageTypeBTRFS:
+		// For BTRFS, we just wipe the first device
+		if len(vol.Disks) > 0 {
+			err = s.btrfsMgr.DeleteFilesystem(vol.Disks[0])
+		}
+
+	case StorageTypeStratis:
+		err = s.stratisMgr.DeleteFilesystem(vol.PoolName, shortName)
+
+	default:
+		err = fmt.Errorf("unsupported storage type: %s", vol.StorageType)
+	}
+
+	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to delete volume: %v", err)
 	}
 
@@ -391,9 +538,19 @@ func (s *Service) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) 
 // GetCapacity returns available capacity
 func (s *Service) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	klog.V(4).Info("GetCapacity")
-	// TODO: Implement actual capacity calculation from Blivet
+
+	// Try to get actual capacity from LVM
+	total, free, err := s.lvmMgr.GetVolumeGroupSize(lvmVolumeGroup)
+	if err != nil {
+		klog.V(4).Infof("Could not get VG size: %v, returning default", err)
+		return &csi.GetCapacityResponse{
+			AvailableCapacity: 100 * 1024 * 1024 * 1024, // 100GB placeholder
+		}, nil
+	}
+
 	return &csi.GetCapacityResponse{
-		AvailableCapacity: 100 * 1024 * 1024 * 1024, // 100GB placeholder
+		AvailableCapacity: free,
+		MaximumVolumeSize: &csi.CapacityRange{RequiredBytes: total},
 	}, nil
 }
 
@@ -446,7 +603,7 @@ func (s *Service) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReque
 	return nil, status.Error(codes.Unimplemented, "ListSnapshots not implemented")
 }
 
-// ControllerExpandVolume expands a volume (not implemented)
+// ControllerExpandVolume expands a volume
 func (s *Service) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	klog.V(4).Infof("ControllerExpandVolume: %s", req.GetVolumeId())
 
@@ -459,7 +616,17 @@ func (s *Service) ControllerExpandVolume(ctx context.Context, req *csi.Controlle
 		return nil, status.Error(codes.NotFound, "Volume not found")
 	}
 
-	// TODO: Implement actual volume expansion
+	// Only LVM supports online expansion currently
+	if vol.StorageType == StorageTypeLVM {
+		newSize := fmt.Sprintf("%dB", req.GetCapacityRange().GetRequiredBytes())
+		shortName := shortenName(vol.Name)
+		if err := s.lvmMgr.ResizeVolume(vol.VolumeGroup, shortName, newSize); err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to resize volume: %v", err)
+		}
+
+		vol.CapacityBytes = req.GetCapacityRange().GetRequiredBytes()
+	}
+
 	return &csi.ControllerExpandVolumeResponse{
 		CapacityBytes:         vol.CapacityBytes,
 		NodeExpansionRequired: false,
